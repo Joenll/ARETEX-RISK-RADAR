@@ -82,24 +82,44 @@ export async function POST(req: Request) {
 
 // Handle Get Request
 
-export async function GET() {
+// export async function GET() {
+//   await connectDB();
+
+//   try {
+//     //  Fetch crime reports with related location and crime type
+//     const crimeReports = await CrimeReport.find()
+//       .populate("location") //  Get full location details
+//       .populate("crime_type") //  Get full crime type details
+//       .exec();
+
+//     return NextResponse.json({ data: crimeReports }, { status: 200 });
+
+//   } catch (error) {
+//     console.error(" Error Fetching Crime Reports:", error);
+//     return NextResponse.json(
+//       { error: "Database Error" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+export async function GET(req: Request){
+
   await connectDB();
+// GET: Fetch Crime Reports with Filters
+  try{
+    const {searchParams} = new URL(req.url);
+    let filters: any ={};
 
-  try {
-    //  Fetch crime reports with related location and crime type
-    const crimeReports = await CrimeReport.find()
-      .populate("location") //  Get full location details
-      .populate("crime_type") //  Get full crime type details
-      .exec();
+//filter by crime type
 
-    return NextResponse.json({ data: crimeReports }, { status: 200 });
+const crimeType = searchParams.get("crime_type");
 
-  } catch (error) {
-    console.error(" Error Fetching Crime Reports:", error);
-    return NextResponse.json(
-      { error: "Database Error" },
-      { status: 500 }
-    );
-  }
+if(crimeType){
+  
 }
 
+  }catch(error){
+
+  }
+}
