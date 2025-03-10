@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import CrimeReport from "@/models/CrimeReports";
 import Location from "@/models/location";
@@ -103,23 +103,77 @@ export async function POST(req: Request) {
 //   }
 // }
 
-export async function GET(req: Request){
+
+
+
+// Ensure database connection
+
+// GET: Fetch Crime Reports with Filters
+export async function GET(req: Request) {
 
   await connectDB();
-// GET: Fetch Crime Reports with Filters
-  try{
-    const {searchParams} = new URL(req.url);
-    let filters: any ={};
 
-//filter by crime type
 
-const crimeType = searchParams.get("crime_type");
+  try {
+    const { searchParams } = new URL(req.url);
+    let filters: any = {};
 
-if(crimeType){
-  
-}
+    // Filter by Crime Type
+    const crimeType = searchParams.get("crime_type");
+    if (crimeType) {
+      const crimeTypeDoc = await CrimeType.findOne({ crime_type: crimeType });
+      if (crimeTypeDoc) {
+        filters.crime_type = crimeTypeDoc._id; // Use ObjectId reference
+      }
+    }
 
-  }catch(error){
+    // Filter by Case Status
+    const caseStatus = searchParams.get("case_status");
+    if (caseStatus) {
+      filters.case_status = caseStatus;
+    }
 
+    // Filter by Date Range
+    const startDate = searchParams.get("start_date");
+    const endDate = searchParams.get("end_date");
+    if (startDate && endDate) {
+      filters.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    }
+
+    //  Filter by Location (Barangay, City, Province)
+    const barangay = searchParams.get("barangay");
+    const municipalityCity = searchParams.get("municipality_city");
+    const province = searchParams.get("province");
+
+    if (barangay || municipalityCity || province) {
+      let locationQuery: any = {};
+      if (barangay) locationQuery.barangay = barangay;
+      if (municipalityCity) locationQuery.municipality_city = municipalityCity;
+      if (province) locationQuery.province = province;
+
+      const locations = await Location.find(locationQuery);
+      const locationIds = locations.map((loc) => loc._id);
+      filters.location = { $in: locationIds };
+    }
+
+    //  Fetch filtered results
+    const crimeReports = await CrimeReport.find(filters)
+      .populate("location")
+      .populate("crime_type")
+      .exec();
+
+    return NextResponse.json({ data: crimeReports }, { status: 200 });
+
+  } catch (error) {
+    console.error(" Error Fetching Crime Reports:", error);
+    return NextResponse.json(
+      { error: "Database Error" },
+      { status: 500 }
+    );
   }
 }
+
+
