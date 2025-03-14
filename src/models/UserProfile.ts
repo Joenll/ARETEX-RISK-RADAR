@@ -3,6 +3,7 @@ import { unique } from "next/dist/build/utils";
 
 const UserProfileSchema = new mongoose.Schema({
 
+     userId: { type: String, required: true, unique: true },
      badgeNumber: { type: String, required: true, unique: true },
      rank: { type: String, required: true },
      first_name: { type: String, required: true },
