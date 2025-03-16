@@ -1,14 +1,19 @@
-import mongoose from "mongoose";
-import { unique } from "next/dist/build/utils";
+import mongoose, { Schema, Document } from "mongoose";
 
-const UserSchema = new mongoose.Schema({
+export interface IUser extends Document {
+  email: string;
+  password: string;
+  role: "admin" | "user"; // Ensuring only valid roles
+  profile: mongoose.Schema.Types.ObjectId; // Reference to UserProfile
+}
 
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    role: { type: String, enum: ["Admin", "User"], required: true },
-    profile: { type: mongoose.Schema.Types.ObjectId, ref: "UserProfile", required: true }, //  References user_profiles
+const UserSchema = new Schema<IUser>({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ["admin", "user"], required: true },
+  profile: { type: mongoose.Schema.Types.ObjectId, ref: "UserProfile" }, // Linking to UserProfile
+});
 
-},  {timestamps: true}
-);
-
-export default mongoose.models.User || mongoose.model("User",UserSchema, "users");
+// Prevent overwriting the model if it already exists
+const User = mongoose.models.User || mongoose.model<IUser>("User", UserSchema, "users");
+export default User;

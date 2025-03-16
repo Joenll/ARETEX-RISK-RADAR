@@ -30,6 +30,7 @@ interface JWT {
   profile: string; // Add profile
 }
 
+
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({

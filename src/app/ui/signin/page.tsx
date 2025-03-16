@@ -21,7 +21,7 @@ export default function SignInPage() {
     if (response?.error) {
       setError("Invalid email or password");
     } else {
-      router.push("/dashboard"); //  Redirect to dashboard after login
+      router.push("/ui/dashboard"); //  Redirect after login
     }
   }
 
