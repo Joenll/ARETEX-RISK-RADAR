@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import connectDB from "@/lib/mongodb";
 import CrimeReport from "@/models/CrimeReports";
 import Location from "@/models/location";
 import CrimeType from "@/models/CrimeType";
+import { requireRole } from "@/middleware/authMiddleware";
 import { error } from "console";
 
 
@@ -12,7 +13,8 @@ import { error } from "console";
          id: string
      }
  }){
-
+  const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
+  if (roleCheck) return roleCheck;
      try{
          const crimeReportId = params.id;
          const body = await req.json();
@@ -65,6 +67,11 @@ import { error } from "console";
 
  // DELETE a Crime Report (DELETE)
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+
+ 
+    const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
+    if (roleCheck) return roleCheck;
+
   try {
     const crimeReportId = params.id; // Extracting params correctly
 

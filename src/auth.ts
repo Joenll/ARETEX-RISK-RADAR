@@ -1,3 +1,4 @@
+
 import NextAuth, { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
@@ -80,6 +81,7 @@ export const authOptions: AuthOptions = {
         token.role = user.role;
         token.profile = user.profile; // Include profile
       }
+      
       return token;
     }
   },

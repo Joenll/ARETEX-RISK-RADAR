@@ -1,12 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import connectDB from "@/lib/mongodb";
 import CrimeReport from "@/models/CrimeReports";
 import Location from "@/models/location";
 import CrimeType from "@/models/CrimeType";
+import { NextResponse } from "next/server";
+import { requireRole } from "@/middleware/authMiddleware";
 
 // Handle POST request
 export async function POST(req: Request) {
   await connectDB();
+
+  const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
+  if (roleCheck) return roleCheck;
 
   try {
     const body = await req.json();
@@ -113,6 +118,8 @@ export async function GET(req: Request) {
 
   await connectDB();
 
+  const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
+  if (roleCheck) return roleCheck;
 
   try {
     const { searchParams } = new URL(req.url);
@@ -175,5 +182,4 @@ export async function GET(req: Request) {
     );
   }
 }
-
 
