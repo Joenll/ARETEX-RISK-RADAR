@@ -10,7 +10,8 @@ import { requireRole } from "@/middleware/authMiddleware";
 export async function POST(req: Request) {
   await connectDB();
 
-  const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
+  // Check for admin role
+  const roleCheck = await requireRole(req, ["admin"]); // Pass the original req object
   if (roleCheck) return roleCheck;
 
   try {
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
 
     // Input Validation (Check for missing required fields)
     const requiredFields = [
-      "crime_id", "date", "time", "day_of_week", 
+      "crime_id", "date", "time", "day_of_week",
       "barangay", "municipality_city", "province", "region",
       "latitude", "longitude", "crime_type", "crime_type_category",
       "case_status", "crime_occurred_indoors_or_outdoors"
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
       );
     }
 
-    //  Check if Crime Type already exists, otherwise create it
+    // Check if Crime Type already exists, otherwise create it
     let crimeType = await CrimeType.findOne({ crime_type: body.crime_type });
 
     if (!crimeType) {
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
       });
     }
 
-    //  Create and store location
+    // Create and store location
     const location = await Location.create({
       house_building_number: body.house_building_number,
       street_name: body.street_name,
@@ -57,14 +58,14 @@ export async function POST(req: Request) {
       longitude: body.longitude
     });
 
-    //  Create and store crime report
+    // Create and store crime report
     const crime = await CrimeReport.create({
       crime_id: body.crime_id,
       date: body.date,
       time: body.time,
       day_of_week: body.day_of_week,
       location: location._id, // Store only the ObjectId reference
-      crime_type: crimeType._id, //  Store only the ObjectId reference
+      crime_type: crimeType._id, // Store only the ObjectId reference
       case_status: body.case_status,
       event_proximity: body.event_proximity,
       crime_occurred_indoors_or_outdoors: body.crime_occurred_indoors_or_outdoors
@@ -115,7 +116,6 @@ export async function POST(req: Request) {
 
 // GET: Fetch Crime Reports with Filters
 export async function GET(req: Request) {
-
   await connectDB();
 
   const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
@@ -125,7 +125,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     let filters: any = {};
 
-    // Filter by Crime Type
+    //  Filter by Crime Type
     const crimeType = searchParams.get("crime_type");
     if (crimeType) {
       const crimeTypeDoc = await CrimeType.findOne({ crime_type: crimeType });
@@ -134,20 +134,40 @@ export async function GET(req: Request) {
       }
     }
 
-    // Filter by Case Status
+    //  Filter by Case Status
     const caseStatus = searchParams.get("case_status");
     if (caseStatus) {
       filters.case_status = caseStatus;
     }
 
-    // Filter by Date Range
+    //  Filter by Date Range
     const startDate = searchParams.get("start_date");
     const endDate = searchParams.get("end_date");
-    if (startDate && endDate) {
-      filters.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
+    if (startDate || endDate) {
+      filters.date = {};
+      if (startDate) filters.date.$gte = new Date(startDate);
+      if (endDate) filters.date.$lte = new Date(endDate);
+    }
+
+    //  Filter by Time Range
+    const startTime = searchParams.get("start_time");
+    const endTime = searchParams.get("end_time");
+    if (startTime || endTime) {
+      filters.time = {};
+      if (startTime) filters.time.$gte = startTime;
+      if (endTime) filters.time.$lte = endTime;
+    }
+
+    //  Filter by Event Proximity
+    const eventProximity = searchParams.get("event_proximity");
+    if (eventProximity) {
+      filters.event_proximity = eventProximity;
+    }
+
+    //  Filter by Crime Occurred Indoors/Outdoors
+    const occurredIndoorsOutdoors = searchParams.get("crime_occurred_indoors_or_outdoors");
+    if (occurredIndoorsOutdoors) {
+      filters.crime_occurred_indoors_or_outdoors = occurredIndoorsOutdoors;
     }
 
     //  Filter by Location (Barangay, City, Province)
@@ -175,7 +195,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ data: crimeReports }, { status: 200 });
 
   } catch (error) {
-    console.error(" Error Fetching Crime Reports:", error);
+    console.error("Error Fetching Crime Reports:", error);
     return NextResponse.json(
       { error: "Database Error" },
       { status: 500 }

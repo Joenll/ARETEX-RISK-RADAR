@@ -1,11 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-export async function requireRole(
-  req: NextRequest,
-  allowedRoles: string[]
-) {
-  const token = await getToken({ req, secret: process.env.SESSION_SECRET });
+export async function requireRole(req: Request, allowedRoles: string[]) {
+  const token = await getToken({ req: req as any, secret: process.env.SESSION_SECRET });
 
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

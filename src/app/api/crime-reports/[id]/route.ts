@@ -13,8 +13,10 @@ import { error } from "console";
          id: string
      }
  }){
-  const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
+  // Check for admin role
+  const roleCheck = await requireRole(req, ["admin"]); // Pass the original req object
   if (roleCheck) return roleCheck;
+  
      try{
          const crimeReportId = params.id;
          const body = await req.json();
