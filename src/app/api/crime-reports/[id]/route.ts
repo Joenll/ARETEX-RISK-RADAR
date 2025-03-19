@@ -7,6 +7,37 @@ import { requireRole } from "@/middleware/authMiddleware";
 import { error } from "console";
 
 
+
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  await connectDB();
+
+  const roleCheck = await requireRole(new NextRequest(req), ["admin", "user"]);
+  if (roleCheck) return roleCheck;
+
+  try {
+    const { id } = params;
+
+    // Find the crime report and populate references
+    const crimeReport = await CrimeReport.findById(id)
+      .populate("location")
+      .populate("crime_type")
+      .lean();
+
+    if (!crimeReport) {
+      return NextResponse.json({ error: "Crime Report not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ data: crimeReport }, { status: 200 });
+
+  } catch (error) {
+    console.error("Error fetching Crime Report:", error);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
+}
+
+
+
+
  await connectDB();
  export async function PUT(req: Request, {params}: {
      params:{
