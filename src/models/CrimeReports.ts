@@ -18,4 +18,7 @@ const CrimeReportSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.models.CrimeReport || mongoose.model("CrimeReport", CrimeReportSchema, "crime_reports");
+// Check if the model already exists using the model name
+const CrimeReport = mongoose.models.crime || mongoose.model("crime", CrimeReportSchema, "crime_records");
+
+export default CrimeReport;
