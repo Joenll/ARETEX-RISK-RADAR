@@ -3,8 +3,13 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import UserProfile from "@/models/UserProfile";
+import mongoose, { Types } from "mongoose"; // Import 'Types'
 
 export async function POST(req: Request) {
+  // --- Optional: Start a Mongoose Session for Transaction ---
+  // const session = await mongoose.startSession();
+  // session.startTransaction();
+
   try {
     await connectDB();
     const {
@@ -16,31 +21,34 @@ export async function POST(req: Request) {
       lastName,
       birthdate,
       department,
-      role, //  This can be omitted during registration
+      // role is intentionally ignored from input, forced to 'user'
     } = await req.json();
 
-    //  Force role to "user" for self-registration
-    const userRole = "user"; 
-
-    // Check if the user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return NextResponse.json({ error: "User already exists" }, { status: 400 });
+    // --- Input Validation (Basic) ---
+    if (!email || !password || !firstName || !lastName || !badgeNumber || !rank || !birthdate || !department) {
+      return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
     }
 
-    // Hash password
+    // --- Check if user already exists ---
+    const existingUser = await User.findOne({ email }/*, { session }*/); // Pass session if using transactions
+    if (existingUser) {
+      return NextResponse.json({ message: "User already exists with this email" }, { status: 409 }); // 409 Conflict is more specific
+    }
+
+    // --- Hash password ---
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create User first (without profile)
-    const newUser = await User.create({
+    // --- Prepare documents in memory ---
+    const newUser = new User({
       email,
       password: hashedPassword,
-      role: userRole, //  Enforcing "user" role
+      role: 'user', // Force role to 'user'
+      status: 'pending', // Default status from schema, but can be explicit
+      // profile will be assigned below
     });
 
-    // Create UserProfile and link it to the created User
-    const userProfile = await UserProfile.create({
-      user: newUser._id,
+    const newUserProfile = new UserProfile({
+      user: newUser._id, // Link to the user instance's ID
       badgeNumber,
       rank,
       firstName,
@@ -49,16 +57,54 @@ export async function POST(req: Request) {
       department,
     });
 
-    // Update the User to link the profile
-    newUser.profile = userProfile._id;
-    await newUser.save();
+   
+    // --- Assign the profile ID back to the user instance ---
+newUser.profile = newUserProfile._id as mongoose.Types.ObjectId; // Add type assertion
+
+
+    // --- Save documents (within transaction if using sessions) ---
+    // Use Promise.all for concurrent saving, or save sequentially if preferred
+    // If using transactions, pass the { session } option to save operations
+
+    // 1. Save UserProfile
+    await newUserProfile.save(/*{ session }*/);
+
+    // 2. Save User (now that profile ID is assigned)
+    await newUser.save(/*{ session }*/);
+
+
+    // --- Optional: Commit Transaction ---
+    // await session.commitTransaction();
 
     return NextResponse.json(
-      { message: "User registered successfully!" },
+      { message: "User registered successfully! Awaiting admin approval." },
       { status: 201 }
     );
-  } catch (error) {
+
+  } catch (error: any) {
+    // --- Optional: Abort Transaction on error ---
+    // if (session && session.inTransaction()) {
+    //   await session.abortTransaction();
+    // }
+
     console.error("Error registering user:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+
+    // Handle specific Mongoose validation errors more gracefully
+    if (error instanceof mongoose.Error.ValidationError) {
+      // Extract meaningful messages from validation errors
+      const messages = Object.values(error.errors).map(e => e.message);
+      return NextResponse.json({ message: "Validation failed", errors: messages }, { status: 400 });
+    }
+    // Handle duplicate key errors (e.g., if email check somehow failed)
+    if (error.code === 11000) {
+       return NextResponse.json({ message: "Duplicate key error.", field: error.keyValue }, { status: 409 });
+    }
+
+    return NextResponse.json({ message: "Server error during registration." }, { status: 500 });
+  } finally {
+    // --- Optional: End Session ---
+    // if (session) {
+    //   session.endSession();
+    // }
   }
 }

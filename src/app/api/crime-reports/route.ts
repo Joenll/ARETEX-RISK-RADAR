@@ -7,83 +7,137 @@ import { requireRole } from "@/middleware/authMiddleware";
 import { fetchCoordinates } from "@/app/utils/geocoder"; // Import fetchCoordinates
 import { isPSGCCode } from "@/app/utils/ispsgc";
 import { getPSGCName } from "@/app/utils/psgcName";
+import mongoose from "mongoose"; // Import mongoose
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 
+// GET: Fetch Crime Reports with all filters and searches
+export async function GET(req: Request) {
+  await connectDB();
 
+  const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
+  if (roleCheck) return roleCheck;
 
+  try {
+    const { searchParams } = new URL(req.url);
+    const limit = parseInt(searchParams.get("limit") || "12");
+    const skip = parseInt(searchParams.get("skip") || "0");
+    // Filters
+    const caseStatus = searchParams.get("case_status");
+    const startDate = searchParams.get("start_date");
+    const endDate = searchParams.get("end_date");
+    // Search terms
+    const searchCrimeType = searchParams.get("search_crime_type");
+    const searchLocation = searchParams.get("search_location"); // Get location search term
 
+    const query: any = {}; // Main query object for CrimeReport
 
-// Utility function for building filters
-const buildCrimeReportFilters = async (searchParams: URLSearchParams) => {
-  let filters: any = {};
+    // --- Start: Crime Type Search Logic ---
+    if (searchCrimeType) {
+      console.log("Searching for crime types matching:", searchCrimeType);
+      const matchingCrimeTypes = await CrimeType.find({
+        crime_type: { $regex: new RegExp(searchCrimeType, "i") }
+      }).select('_id');
 
-  // Filter by Crime Type
-  const crimeType = searchParams.get("crime_type");
-  if (crimeType) {
-    const crimeTypeDoc = await CrimeType.findOne({ crime_type: crimeType });
-    if (crimeTypeDoc) {
-      filters.crime_type = crimeTypeDoc._id; // Use ObjectId reference
+      const crimeTypeIds = matchingCrimeTypes.map(ct => ct._id);
+      console.log("Found matching crime type IDs:", crimeTypeIds);
+
+      if (crimeTypeIds.length === 0) {
+        console.log("No matching crime types found.");
+        return NextResponse.json({ data: [], total: 0 }, { status: 200 });
+      }
+      query.crime_type = { $in: crimeTypeIds };
     }
+    // --- End: Crime Type Search Logic ---
+
+    // --- Start: Location Search Logic --- (NEW)
+    if (searchLocation) {
+      console.log("Searching for locations matching:", searchLocation);
+      const searchRegex = new RegExp(searchLocation, "i"); // Case-insensitive regex
+
+      // Define fields to search within the Location model
+      const locationSearchFields = [
+        { barangay: searchRegex },
+        { municipality_city: searchRegex },
+        { province: searchRegex },
+        { region: searchRegex },
+        { street_name: searchRegex },
+        { purok_block_lot: searchRegex },
+        // Add other relevant string fields from your Location model if needed
+      ];
+
+      const matchingLocations = await Location.find({
+        $or: locationSearchFields // Search across multiple fields
+      }).select('_id'); // Only get the IDs
+
+      const locationIds = matchingLocations.map(loc => loc._id);
+      console.log("Found matching location IDs:", locationIds);
+
+      // If search term provided but no matching locations found, return empty
+      if (locationIds.length === 0) {
+        console.log("No matching locations found for search term.");
+        return NextResponse.json({ data: [], total: 0 }, { status: 200 });
+      }
+      // Add the $in condition to the main query
+      query.location = { $in: locationIds };
+    }
+    // --- End: Location Search Logic ---
+
+    // --- Add Standard Filters ---
+    if (caseStatus) {
+      query.case_status = caseStatus;
+    }
+
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) {
+        const parsedStartDate = new Date(startDate);
+        if (!isNaN(parsedStartDate.getTime())) {
+            query.date.$gte = parsedStartDate;
+        } else {
+            console.warn("Invalid start_date received:", startDate);
+        }
+      }
+      if (endDate) {
+         const parsedEndDate = new Date(endDate);
+         if (!isNaN(parsedEndDate.getTime())) {
+            parsedEndDate.setHours(23, 59, 59, 999); // End of the day
+            query.date.$lte = parsedEndDate;
+         } else {
+            console.warn("Invalid end_date received:", endDate);
+         }
+      }
+    }
+    // --- End: Standard Filters ---
+
+    console.log("Executing CrimeReport query:", JSON.stringify(query, null, 2)); // Log final query
+
+    // Get total count matching the combined query
+    const total = await CrimeReport.countDocuments(query);
+
+    // Get the paginated crime reports matching the combined query
+    const crimeReports = await CrimeReport.find(query)
+      .populate("location")
+      .populate("crime_type")
+      .sort({ date: -1, time: -1 }) // Optional sort
+      .limit(limit)
+      .skip(skip)
+      .exec();
+
+    console.log(`Found ${crimeReports.length} reports for this page, total matching: ${total}`);
+
+    return NextResponse.json({ data: crimeReports, total }, { status: 200 });
+  } catch (error) {
+    console.error("Error Fetching Crime Reports:", error);
+    if (error instanceof Error) {
+      console.error("Error stack:", error.stack);
+    }
+    return NextResponse.json({ error: "Database Error" }, { status: 500 });
   }
+}
 
-  // Filter by Case Status
-  const caseStatus = searchParams.get("case_status");
-  if (caseStatus) {
-    filters.case_status = caseStatus;
-  }
 
-  // Filter by Date Range
-  const startDate = searchParams.get("start_date");
-  const endDate = searchParams.get("end_date");
-  if (startDate || endDate) {
-    filters.date = {};
-    if (startDate) filters.date.$gte = new Date(startDate);
-    if (endDate) filters.date.$lte = new Date(endDate);
-  }
-
-  // Filter by Time Range
-  const startTime = searchParams.get("start_time");
-  const endTime = searchParams.get("end_time");
-  if (startTime || endTime) {
-    filters.time = {};
-    if (startTime) filters.time.$gte = startTime;
-    if (endTime) filters.time.$lte = endTime;
-  }
-
-  // Filter by Event Proximity
-  const eventProximity = searchParams.get("event_proximity");
-  if (eventProximity) {
-    filters.event_proximity = eventProximity;
-  }
-
-  // Filter by Crime Occurred Indoors/Outdoors
-  const occurredIndoorsOutdoors = searchParams.get(
-    "crime_occurred_indoors_or_outdoors"
-  );
-  if (occurredIndoorsOutdoors) {
-    filters.crime_occurred_indoors_or_outdoors = occurredIndoorsOutdoors;
-  }
-
-  // Filter by Location (Barangay, City, Province)
-  const barangay = searchParams.get("barangay");
-  const municipalityCity = searchParams.get("municipality_city");
-  const province = searchParams.get("province");
-
-  if (barangay || municipalityCity || province) {
-    let locationQuery: any = {};
-    if (barangay) locationQuery.barangay = barangay;
-    if (municipalityCity) locationQuery.municipality_city = municipalityCity;
-    if (province) locationQuery.province = province;
-
-    const locations = await Location.find(locationQuery);
-    const locationIds = locations.map((loc) => loc._id);
-    filters.location = { $in: locationIds };
-  }
-
-  return filters;
-};
 
 // Handle POST request
 export async function POST(req: Request) {
@@ -105,9 +159,21 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     console.log("Request Body:", body);
-    // Input Validation (Check for missing required fields except latitude & longitude)
+
+    // --- Start: Duplicate crime_id Check --- (NEW)
+    const existingReport = await CrimeReport.findOne({ crime_id: body.crime_id });
+    if (existingReport) {
+      console.warn(`Attempted to add duplicate crime_id: ${body.crime_id}`);
+      return NextResponse.json(
+        { error: `Crime report with ID '${body.crime_id}' already exists.` },
+        { status: 409 } // 409 Conflict status code
+      );
+    }
+    // --- End: Duplicate crime_id Check ---
+
+    // Input Validation (Check for missing required fields)
     const requiredFields = [
-      "crime_id",
+      "crime_id", // Already checked for duplication above
       "date",
       "time",
       "day_of_week",
@@ -147,7 +213,7 @@ export async function POST(req: Request) {
       );
     }
 
-   // 🔹 1. Fetch Latitude & Longitude from Google Maps API (Only for valid addresses)
+   // 1. Fetch Latitude & Longitude (Keep existing logic)
    const addressParts = [
     body.house_building_number,
     body.street_name,
@@ -183,17 +249,17 @@ export async function POST(req: Request) {
     }
   }
 
-    // 🔹 2. Check if Crime Type already exists, otherwise create it
+    // 2. Find or Create Crime Type (Keep existing logic)
     let crimeType = await CrimeType.findOne({ crime_type: body.crime_type });
-
     if (!crimeType) {
-      crimeType = await CrimeType.create({
+        crimeType = await CrimeType.create({
         crime_type: body.crime_type,
         crime_type_category: body.crime_type_category,
-      });
+    });
     }
+    const crimeTypeId = crimeType._id;
 
-     // Prepare location data
+    // Prepare location data (Keep existing logic)
     const locationData: any = {
       house_building_number: body.house_building_number,
       street_name: body.street_name,
@@ -220,7 +286,7 @@ export async function POST(req: Request) {
       locationData.longitude = longitude;
     }
 
-    // 🔹 3. Create and store location with auto-detected latitude & longitude
+    // 3. Create Location (Keep existing logic)
     const location = await Location.create({
       house_building_number: body.house_building_number,
       street_name: body.street_name,
@@ -230,26 +296,20 @@ export async function POST(req: Request) {
       province: body.province_name,
       zip_code: body.zip_code,
       region: body.region_name,
-      latitude: latitude, // Auto-fetched
-      longitude: longitude, // Auto-fetched
+      latitude: latitude,
+      longitude: longitude,
     });
 
-    if (isPSGCCode(fullAddress)) {
-      location.psgc_code = fullAddress;
-      location.barangay_name = await getPSGCName(body.barangay);
-      location.municipality_city_name = await getPSGCName(body.municipality_city);
-      location.province_name = await getPSGCName(body.province);
-      location.region_name = await getPSGCName(body.region);
-    }
+    console.log("Location Created:", location);
 
-    // 🔹 4. Create and store crime report
+    // 4. Create Crime Report (Keep existing logic)
     const crime = await CrimeReport.create({
       crime_id: body.crime_id,
       date: body.date,
       time: body.time,
       day_of_week: body.day_of_week,
-      location: location._id, // Store only the ObjectId reference
-      crime_type: crimeType._id, // Store only the ObjectId reference
+      location: location._id,
+      crime_type: crimeTypeId,
       case_status: body.case_status,
       event_proximity: body.event_proximity,
       crime_occurred_indoors_or_outdoors: body.crime_occurred_indoors_or_outdoors,
@@ -257,9 +317,17 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       { message: "Crime Report Saved!", data: crime },
-      { status: 201 }
+      { status: 201 } // 201 Created status code
     );
   } catch (error) {
+    // Check specifically for Mongoose duplicate key errors (though our check above is better)
+    if (error instanceof Error && (error as any).code === 11000) {
+       console.error("Duplicate key error:", error);
+       // Extract the duplicate key field if possible
+       const field = Object.keys((error as any).keyValue)[0];
+       return NextResponse.json({ error: `Duplicate value for ${field}: ${(error as any).keyValue[field]}` }, { status: 409 });
+    }
+
     console.error("Error Saving Crime Report:", error);
     if (error instanceof Error) {
       console.error("Error stack:", error.stack);
@@ -269,219 +337,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Database Error" }, { status: 500 });
   }
 }
-
-// Handle Get Request
-
-// export async function GET() {
-//   await connectDB();
-
-//   try {
-//     //  Fetch crime reports with related location and crime type
-//     const crimeReports = await CrimeReport.find()
-//       .populate("location") //  Get full location details
-//       .populate("crime_type") //  Get full crime type details
-//       .exec();
-
-//     return NextResponse.json({ data: crimeReports }, { status: 200 });
-
-//   } catch (error) {
-//     console.error(" Error Fetching Crime Reports:", error);
-//     return NextResponse.json(
-//       { error: "Database Error" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-// Ensure database connection
-
-// GET: Fetch Crime Reports with Filters
-export async function GET(req: Request) {
-  await connectDB();
-
-  const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
-  if (roleCheck) return roleCheck;
-
-  try {
-    const { searchParams } = new URL(req.url);
-    let filters: any = {};
-
-    //  Filter by Crime Type
-    const crimeType = searchParams.get("crime_type");
-    if (crimeType) {
-      const crimeTypeDoc = await CrimeType.findOne({ crime_type: crimeType });
-      if (crimeTypeDoc) {
-        filters.crime_type = crimeTypeDoc._id; // Use ObjectId reference
-      }
-    }
-
-    //  Filter by Case Status
-    const caseStatus = searchParams.get("case_status");
-    if (caseStatus) {
-      filters.case_status = caseStatus;
-    }
-
-    //  Filter by Date Range
-    const startDate = searchParams.get("start_date");
-    const endDate = searchParams.get("end_date");
-    if (startDate || endDate) {
-      filters.date = {};
-      if (startDate) filters.date.$gte = new Date(startDate);
-      if (endDate) filters.date.$lte = new Date(endDate);
-    }
-
-    //  Filter by Time Range
-    const startTime = searchParams.get("start_time");
-    const endTime = searchParams.get("end_time");
-    if (startTime || endTime) {
-      filters.time = {};
-      if (startTime) filters.time.$gte = startTime;
-      if (endTime) filters.time.$lte = endTime;
-    }
-
-    //  Filter by Event Proximity
-    const eventProximity = searchParams.get("event_proximity");
-    if (eventProximity) {
-      filters.event_proximity = eventProximity;
-    }
-
-    //  Filter by Crime Occurred Indoors/Outdoors
-    const occurredIndoorsOutdoors = searchParams.get(
-      "crime_occurred_indoors_or_outdoors"
-    );
-    if (occurredIndoorsOutdoors) {
-      filters.crime_occurred_indoors_or_outdoors = occurredIndoorsOutdoors;
-    }
-
-    //  Filter by Location (Barangay, City, Province)
-    const barangay = searchParams.get("barangay");
-    const municipalityCity = searchParams.get("municipality_city");
-    const province = searchParams.get("province");
-
-    if (barangay || municipalityCity || province) {
-      let locationQuery: any = {};
-      if (barangay) locationQuery.barangay = barangay;
-      if (municipalityCity) locationQuery.municipality_city = municipalityCity;
-      if (province) locationQuery.province = province;
-
-      const locations = await Location.find(locationQuery);
-      const locationIds = locations.map((loc) => loc._id);
-      filters.location = { $in: locationIds };
-    }
-
-    //  Fetch filtered results
-    const crimeReports = await CrimeReport.find(filters)
-      .populate("location")
-      .populate("crime_type")
-      .exec()
-      .catch((err) => console.error("Error populating data:", err));
-
-
-    return NextResponse.json({ data: crimeReports }, { status: 200 });
-  } catch (error) {
-    console.error("Error Fetching Crime Reports:", error);    
-    if (error instanceof Error) {
-      console.error("Error stack:", error.stack);
-    }
-    return NextResponse.json({ error: "Database Error" }, { status: 500 });
-  }
-}
-
-
-
-// // Utility function for building filters
-// const buildCrimeReportFilters = async (searchParams: URLSearchParams) => {
-//   let filters: any = {};
-
-//   // Filter by Crime Type
-//   const crimeType = searchParams.get("crime_type");
-//   if (crimeType) {
-//     const crimeTypeDoc = await CrimeType.findOne({ crime_type: crimeType });
-//     if (crimeTypeDoc) {
-//       filters.crime_type = crimeTypeDoc._id; // Use ObjectId reference
-//     }
-//   }
-
-//   // Filter by Case Status
-//   const caseStatus = searchParams.get("case_status");
-//   if (caseStatus) {
-//     filters.case_status = caseStatus;
-//   }
-
-//   // Filter by Date Range
-//   const startDate = searchParams.get("start_date");
-//   const endDate = searchParams.get("end_date");
-//   if (startDate || endDate) {
-//     filters.date = {};
-//     if (startDate) filters.date.$gte = new Date(startDate);
-//     if (endDate) filters.date.$lte = new Date(endDate);
-//   }
-
-//   // Filter by Time Range
-//   const startTime = searchParams.get("start_time");
-//   const endTime = searchParams.get("end_time");
-//   if (startTime || endTime) {
-//     filters.time = {};
-//     if (startTime) filters.time.$gte = startTime;
-//     if (endTime) filters.time.$lte = endTime;
-//   }
-
-//   // Filter by Event Proximity
-//   const eventProximity = searchParams.get("event_proximity");
-//   if (eventProximity) {
-//     filters.event_proximity = eventProximity;
-//   }
-
-//   // Filter by Crime Occurred Indoors/Outdoors
-//   const occurredIndoorsOutdoors = searchParams.get(
-//     "crime_occurred_indoors_or_outdoors"
-//   );
-//   if (occurredIndoorsOutdoors) {
-//     filters.crime_occurred_indoors_or_outdoors = occurredIndoorsOutdoors;
-//   }
-
-//   // Filter by Location (Barangay, City, Province)
-//   const barangay = searchParams.get("barangay");
-//   const municipalityCity = searchParams.get("municipality_city");
-//   const province = searchParams.get("province");
-
-//   if (barangay || municipalityCity || province) {
-//     let locationQuery: any = {};
-//     if (barangay) locationQuery.barangay = barangay;
-//     if (municipalityCity) locationQuery.municipality_city = municipalityCity;
-//     if (province) locationQuery.province = province;
-
-//     const locations = await Location.find(locationQuery);
-//     const locationIds = locations.map((loc) => loc._id);
-//     filters.location = { $in: locationIds };
-//   }
-
-//   return filters;
-// };
-
-// // GET: Fetch Crime Reports with Filters
-// export async function GET(req: Request) {
-//   await connectDB();
-
-//   const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
-//   if (roleCheck) return roleCheck;
-
-//   try {
-//     const { searchParams } = new URL(req.url);
-//     const filters = await buildCrimeReportFilters(searchParams);
-
-//     // Fetch filtered results
-//     const crimeReports = await CrimeReport.find(filters)
-//       .populate("location")
-//       .populate("crime_type")
-//       .exec();
-
-//     return NextResponse.json({ data: crimeReports }, { status: 200 });
-//   } catch (error) {
-//     console.error("Error Fetching Crime Reports:", error);
-//     if (error instanceof Error) {
-//       console.error("Error stack:", error.stack);
-//     }
-//     return NextResponse.json({ error: "Database Error" }, { status: 500 });
-//   }
-// }
