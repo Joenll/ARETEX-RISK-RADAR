@@ -1,4 +1,3 @@
-// src/app/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User, { IUser, UserStatus } from "@/models/User"; // Import IUser and UserStatus
@@ -14,7 +13,7 @@ const ALLOWED_STATUSES: UserStatus[] = ['pending', 'approved', 'rejected'];
 
 
 // --- GET user by ID ---
-// (Keep your existing GET handler, but ensure it uses getToken for auth check if requireRole is removed)
+// (Keep existing GET handler, but ensure it uses getToken for auth check if requireRole is removed)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     await connectDB();
 

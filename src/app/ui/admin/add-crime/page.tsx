@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { fetchCoordinates } from "@/app/utils/geocoder";
 import { isPSGCCode } from "@/app/utils/ispsgc";
 import LocationDropdown from "@/app/components/LocationDropdown";
+import Button from "@/app/components/Button";
 
 
 // Debounce function
@@ -347,12 +348,13 @@ export default function CrimeReportForm() {
           )}
         </div>
         {/* Submit Button */}
-        <button
-          type="submit"
-          className="bg-blue-500 text-white px-4 py-2 rounded-md mt-4 w-full"
-        >
-          Submit
-        </button>
+        <Button
+                type="submit"
+                variant="submit" 
+                className="w-full" 
+            >
+                Submit
+            </Button>
       </form>
     </div>
   );

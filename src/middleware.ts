@@ -1,55 +1,55 @@
+// src/middleware.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 const AUTHENTICATED_ROOT = "/ui/dashboard";
-const PUBLIC_PATHS = ["/", "/registration"];
+// --- Add '/ui/about' here ---
+const PUBLIC_PATHS = ["/", "/registration", "/about"];
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
-  console.log("Middleware running for:", pathname);
+  console.log("Middleware running for:", pathname); // Keep logging for debug if needed
 
   // --- Allow access to explicitly public paths ---
   if (PUBLIC_PATHS.includes(pathname)) {
     console.log(`[Public Path Check] Path: ${pathname}`);
-    let response: NextResponse | null = null; // Prepare response variable
+    let response: NextResponse | null = null;
 
     try {
       const token = await getToken({ req, secret: process.env.SESSION_SECRET });
-      // (Keep your detailed logging here if you find it helpful)
       console.log(`[Public Path Check] Token fetched: ${token ? 'Exists' : 'None'}`);
-      if (token) {
-        console.log(`[Public Path Check] Token details (role): ${token.role}`);
-      }
-      const isPublicAuthPath = pathname === "/" || pathname === "/registration";
-      const shouldRedirect = token && isPublicAuthPath;
-      console.log(`[Public Path Check] Is public auth path? ${isPublicAuthPath}`);
-      console.log(`[Public Path Check] Should redirect authenticated user? ${shouldRedirect}`);
 
+      // Only redirect logged-in users away from the actual sign-in/registration pages
+      const isAuthPage = pathname === "/" || pathname === "/registration";
+      const shouldRedirect = token && isAuthPage;
+      console.log(`[Public Path Check] Is auth page? ${isAuthPage}`);
+      console.log(`[Public Path Check] Should redirect authenticated user? ${shouldRedirect}`);
 
       if (shouldRedirect) {
         console.log(`[Public Path Check] Redirecting authenticated user (Role: ${token?.role}) from ${pathname} to ${AUTHENTICATED_ROOT}.`);
         return NextResponse.redirect(new URL(AUTHENTICATED_ROOT, req.url));
       }
 
-      // --- If NOT redirecting (i.e., allowing access to public path) ---
-      console.log(`[Public Path Check] Allowing access for path: ${pathname}`);
-      // Create the response to allow the request to proceed
-      response = NextResponse.next();
-      // --- CHANGE CACHE-CONTROL HEADER ---
-      // Add header to discourage caching of the sign-in/registration pages
-      response.headers.set('Cache-Control', 'no-store, must-revalidate'); // Use must-revalidate
-      console.log(`[Public Path Check] Added Cache-Control: no-store, must-revalidate header for ${pathname}`);
-      // --- END CHANGE CACHE-CONTROL ---
+      console.log(`[Public Path Check] Allowing access for public path: ${pathname}`);
+      response = NextResponse.next(); // Allow access
+
+      // Apply no-store cache only to auth pages if needed, not necessarily to /ui/about
+      if (isAuthPage) {
+          response.headers.set('Cache-Control', 'no-store, must-revalidate');
+          console.log(`[Public Path Check] Added Cache-Control: no-store, must-revalidate header for ${pathname}`);
+      }
 
     } catch (error) {
       console.error("[Public Path Check] Error checking token for public path redirect:", error);
-      // If an error occurs, still allow access but add cache control
+      // Allow access even if token check fails for public paths
       response = NextResponse.next();
-      // Also update here if desired
-      response.headers.set('Cache-Control', 'no-store, must-revalidate'); // Use must-revalidate
+      // Optionally set cache control here too if needed for error cases on auth pages
+      // if (pathname === "/" || pathname === "/registration") {
+      //    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+      // }
     }
-
-    return response; // Return the prepared response
+    return response; // Return the response allowing access
   }
 
   // --- Check authentication for all other paths ---
@@ -74,6 +74,7 @@ export async function middleware(req: NextRequest) {
     console.log("[Admin Path Check] Checking access for admin path...");
     if (token.role !== "admin") {
       console.log(`[Admin Path Check] Role mismatch: User role is '${token.role}', redirecting.`);
+      // Redirect non-admins trying to access admin pages to their dashboard
       return NextResponse.redirect(new URL(AUTHENTICATED_ROOT, req.url));
     }
     console.log("[Admin Path Check] Admin access granted.");
@@ -84,9 +85,9 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+// --- Config remains the same ---
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.).*)',
   ],
 };
- 

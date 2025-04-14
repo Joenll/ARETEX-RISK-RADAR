@@ -1,9 +1,8 @@
 // src/app/ui/layout.tsx
 import type { Metadata } from "next";
-// Removed font imports as they are in the root layout
 import "../globals.css";
-import Sidebar from "../components/Sidebar"; // Import the new Sidebar component
-// Removed SessionProvider import - it's correctly in the root layout
+import Sidebar from "../components/Sidebar";
+import DashboardHeader from "../components/Header"; // Import the header component (using the filename you provided)
 
 // Metadata can often be inherited or refined here if needed, but keep root simple
 // export const metadata: Metadata = { ... };
@@ -11,15 +10,24 @@ import Sidebar from "../components/Sidebar"; // Import the new Sidebar component
 export default function UILayout({ children }: { children: React.ReactNode }) {
   return (
     // Use flex for the overall layout
-    <div className="flex min-h-screen">
-      {/* Render the Sidebar */}
+    <div className="flex min-h-screen bg-gray-100"> {/* Added background color */}
+      {/* Render the Sidebar (fixed position) */}
       <Sidebar />
 
-      {/* Main content area */}
-      {/* Add left margin/padding equal to the sidebar width */}
-      <main className="flex-1 ml-60 p-4 md:p-6 lg:p-8 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-        {children}
-      </main>
+      {/* Main content area wrapper */}
+      {/* Add left margin equal to the sidebar width */}
+      {/* Use flex-col to stack header and main content */}
+      <div className="flex-1 flex flex-col ml-60"> {/* ml-60 matches sidebar width */}
+
+        {/* Render the Dashboard Header (sticky) */}
+        <DashboardHeader />
+
+        {/* Main content area */}
+        {/* Make it scrollable and add padding */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-gray-50"> {/* Changed bg to gray-50 */}
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

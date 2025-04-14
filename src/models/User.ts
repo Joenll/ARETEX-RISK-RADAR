@@ -13,6 +13,8 @@ export interface IUser extends Document {
   status: UserStatus;
   createdAt: Date;
   updatedAt: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date; // Optional field for password change tracking
 }
 
 // Schema corresponding to the User document interface.
@@ -47,6 +49,14 @@ const UserSchema = new Schema<IUser>(
       enum: ['pending', 'approved', 'rejected'],
       default: 'pending',
       required: true,
+    },
+    passwordResetToken: {
+      type: String,
+      select: false, // Don't select by default
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false, // Don't select by default
     },
   },
   {

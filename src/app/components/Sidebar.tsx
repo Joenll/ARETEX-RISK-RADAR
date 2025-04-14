@@ -1,96 +1,120 @@
 // src/app/components/Sidebar.tsx
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { usePathname } from "next/navigation"; // Import usePathname
+import { usePathname } from "next/navigation";
+import {
+  FaTachometerAlt,
+  FaFileAlt,
+  FaUsers,
+  FaUserCircle,
+} from "react-icons/fa";
 
 export default function Sidebar() {
   const { data: session } = useSession();
-  const pathname = usePathname(); // Get the current path
+  const pathname = usePathname();
 
-  // Handler for signing out with confirmation
-  const handleSignOut = () => {
-    if (window.confirm("Are you sure you want to sign out?")) {
-      signOut({ callbackUrl: '/' });
-    }
-  };
-
-  // Helper function to determine if a link is active
   const isActive = (href: string) => pathname === href;
 
   return (
-    // Sidebar container: fixed position, full height, width, background, flex column
-    <aside className="bg-gray-900 text-white w-60 h-screen p-4 flex flex-col fixed top-0 left-0 shadow-lg">
-      {/* App Title/Logo */}
-      <div className="text-2xl font-bold mb-6 border-b border-gray-700 pb-3">
-        Aretex Risk Radar
+    <aside className="w-60 min-h-screen bg-gray-50 shadow-md flex flex-col fixed top-0 left-0">
+      {/* --- UPDATED App Title/Logo --- */}
+      {/* Reduced padding slightly, adjusted image/text sizes */}
+      <div className="flex items-center p-3 mb-4 border-b border-gray-200 h-16"> {/* Reduced p-4 to p-3 */}
+        <img
+          src="/riskradar.png"
+          alt="Risk Radar Logo"
+          className="h-8 mr-1" // Reduced height from h-9/h-10
+        />
+        <div className="flex items-center space-x-1">
+          <img src="/aretex.png" alt="Aretex" className="h-3.5" /> {/* Reduced height from h-4/h-5 */}
+          {/* Reduced font size from text-lg/text-xl */}
+          <span className="text-base font-bold text-red-500 mt-1">RISK</span>
+          <span className="text-base font-bold text-gray-800 mt-1">RADAR</span>
+        </div>
       </div>
+      {/* --- End UPDATED App Title/Logo --- */}
+
 
       {/* Navigation Links */}
-      <nav className="flex flex-col gap-2 flex-grow">
-        
+      <nav className="flex-1 mt-0">
+        <ul className="space-y-1 px-2">
+          {/* Dashboard Link */}
+          {session && (
+            <li>
+              <Link
+                href="/ui/dashboard"
+                className={`flex items-center px-4 py-3 rounded-md transition-colors ${
+                  isActive('/ui/dashboard')
+                    ? "bg-gray-100 text-orange-500 font-semibold"
+                    : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
+                }`}
+              >
+                <FaTachometerAlt
+                  className={`mr-3 ${isActive('/ui/dashboard') ? "text-orange-500" : "text-gray-600"}`}
+                />
+                <span>Dashboard</span>
+              </Link>
+            </li>
+          )}
 
-        {session && (
-          <Link
-            href="/ui/dashboard"
-            className={`p-2 rounded hover:bg-gray-700 ${isActive('/ui/dashboard') ? 'bg-gray-700 font-semibold' : ''}`}
-          >
-            Dashboard
-          </Link>
-        )}
+          {/* Admin Links */}
+          {session?.user?.role === "admin" && (
+            <>
+              <li>
+                <Link
+                  href="/ui/admin/view-crime"
+                  className={`flex items-center px-4 py-3 rounded-md transition-colors ${
+                    isActive('/ui/admin/view-crime')
+                      ? "bg-gray-100 text-orange-500 font-semibold"
+                      : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
+                  }`}
+                >
+                  <FaFileAlt
+                     className={`mr-3 ${isActive('/ui/admin/view-crime') ? "text-orange-500" : "text-gray-600"}`}
+                  />
+                  <span>View Reports</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/ui/admin/user-management"
+                  className={`flex items-center px-4 py-3 rounded-md transition-colors ${
+                    isActive('/ui/admin/user-management')
+                      ? "bg-gray-100 text-orange-500 font-semibold"
+                      : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
+                  }`}
+                >
+                  <FaUsers
+                     className={`mr-3 ${isActive('/ui/admin/user-management') ? "text-orange-500" : "text-gray-600"}`}
+                  />
+                  <span>User Management</span>
+                </Link>
+              </li>
+            </>
+          )}
 
-        {session?.user?.role === "admin" && (
-          <>
-            <Link
-              href="/ui/admin/add-crime"
-              className={`p-2 rounded hover:bg-gray-700 ${isActive('/ui/admin/add-crime') ? 'bg-gray-700 font-semibold' : ''}`}
-            >
-              Add Crime
-            </Link>
-            <Link
-              href="/ui/admin/view-crime"
-              className={`p-2 rounded hover:bg-gray-700 ${isActive('/ui/admin/view-crime') ? 'bg-gray-700 font-semibold' : ''}`}
-            >
-              View Reports
-            </Link>
-            <Link
-              href="/ui/admin/user-management"
-              className={`p-2 rounded hover:bg-gray-700 ${isActive('/ui/admin/user-management') ? 'bg-gray-700 font-semibold' : ''}`}
-            >
-              User Management
-            </Link>
-          </>
-        )}
-
-        {session && (
-          <Link
-            href="/ui/profile"
-            className={`p-2 rounded hover:bg-gray-700 ${isActive('/ui/profile') ? 'bg-gray-700 font-semibold' : ''}`}
-          >
-            Profile
-          </Link>
-        )}
+          {/* Profile Link */}
+          {session && (
+            <li>
+              <Link
+                href="/ui/profile"
+                className={`flex items-center px-4 py-3 rounded-md transition-colors ${
+                  isActive('/ui/profile')
+                    ? "bg-gray-100 text-orange-500 font-semibold"
+                    : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
+                }`}
+              >
+                <FaUserCircle
+                   className={`mr-3 ${isActive('/ui/profile') ? "text-orange-500" : "text-gray-600"}`}
+                />
+                <span>Profile</span>
+              </Link>
+            </li>
+          )}
+        </ul>
       </nav>
-
-      {/* Sign Out / Sign In Section at the bottom */}
-      <div className="mt-auto pt-4 border-t border-gray-700">
-        {session ? (
-          <button
-            onClick={handleSignOut}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded text-center"
-          >
-            Sign Out
-          </button>
-        ) : (
-          <Link
-            href="/ui/signin"
-            className={`block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded ${isActive('/ui/signin') ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-blue-400' : ''}`}
-          >
-            Sign In
-          </Link>
-        )}
-      </div>
     </aside>
   );
 }
