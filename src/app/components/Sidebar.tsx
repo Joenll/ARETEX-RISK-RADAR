@@ -5,20 +5,31 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  FaTachometerAlt,
-  FaFileAlt,
   FaUsers,
-  FaUserCircle,
+  FaRegUserCircle,
 } from "react-icons/fa";
+// --- Cleaned up unused imports ---
+import { FaFileCircleExclamation } from "react-icons/fa6";
+import { MdOutlineDashboard } from "react-icons/md";
 
 export default function Sidebar() {
   const { data: session } = useSession();
   const pathname = usePathname();
 
-  const isActive = (href: string) => pathname === href;
+  // --- Determine Dashboard URL based on role ---
+  const dashboardUrl = session?.user?.role === 'admin' ? '/ui/admin/dashboard' : '/ui/dashboard';
 
-  // Define a consistent color class for icons - CHANGED TO GRAY-800
-  const iconColorClass = "text-gray-800"; // Changed from text-orange-500
+  // --- Updated isActive function to handle both dashboard paths ---
+  const isActive = (href: string) => {
+    // Special handling for dashboard link to match both admin/user paths
+    if (href === '/ui/dashboard' || href === '/ui/admin/dashboard') {
+      return pathname === '/ui/dashboard' || pathname === '/ui/admin/dashboard';
+    }
+    return pathname === href;
+  };
+
+  // Define a consistent color class for icons
+  const iconColorClass = "text-orange-500";
 
   return (
     // Increased top padding significantly (pt-20) to push nav down
@@ -28,20 +39,21 @@ export default function Sidebar() {
       {/* Navigation Links */}
       {/* Adjusted mt-0 to keep links near the top (relative to the new padding) */}
       <nav className="flex-1 mt-0">
-        {/* Adjusted padding/spacing to match previous request */}
+        {/* Adjusted padding/spacing */}
         <ul className="space-y-2">
-          {/* Dashboard Link */}
+          {/* Dashboard Link - Now conditional */}
           {session && (
             <li>
               <Link
-                href="/ui/dashboard"
+                href={dashboardUrl} // Use the determined URL
                 className={`flex items-center px-6 py-3 rounded-md transition-colors ${
-                  isActive('/ui/dashboard')
-                    ? "bg-gray-100 text-orange-500 font-semibold" // Active text remains orange
-                    : "text-gray-800 hover:bg-gray-100 hover:text-orange-500" // Non-active text is gray
+                  // Use the determined URL for the active check
+                  isActive(dashboardUrl)
+                    ? "bg-gray-200 text-black font-semibold" // Reverted active style
+                    : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
                 }`}
               >
-                <FaTachometerAlt
+                <MdOutlineDashboard
                   className={`mr-3 ${iconColorClass}`} // Apply consistent icon color
                 />
                 <span>Dashboard</span>
@@ -57,11 +69,11 @@ export default function Sidebar() {
                   href="/ui/admin/view-crime"
                   className={`flex items-center px-6 py-3 rounded-md transition-colors ${
                     isActive('/ui/admin/view-crime')
-                      ? "bg-gray-100 text-orange-500 font-semibold"
+                      ? "bg-gray-200 text-black font-semibold" // Reverted active style
                       : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
                   }`}
                 >
-                  <FaFileAlt
+                  <FaFileCircleExclamation
                      className={`mr-3 ${iconColorClass}`} // Apply consistent icon color
                   />
                   <span>Crime Reports</span>
@@ -72,7 +84,7 @@ export default function Sidebar() {
                   href="/ui/admin/user-management"
                   className={`flex items-center px-6 py-3 rounded-md transition-colors ${
                     isActive('/ui/admin/user-management')
-                      ? "bg-gray-100 text-orange-500 font-semibold"
+                      ? "bg-gray-200 text-black font-semibold" // Reverted active style
                       : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
                   }`}
                 >
@@ -92,11 +104,11 @@ export default function Sidebar() {
                 href="/ui/profile"
                 className={`flex items-center px-6 py-3 rounded-md transition-colors ${
                   isActive('/ui/profile')
-                    ? "bg-gray-100 text-orange-500 font-semibold"
+                    ? "bg-gray-200 text-black font-semibold" // Reverted active style
                     : "text-gray-800 hover:bg-gray-100 hover:text-orange-500"
                 }`}
               >
-                <FaUserCircle
+                <FaRegUserCircle
                    className={`mr-3 ${iconColorClass}`} // Apply consistent icon color
                 />
                 <span>Profile</span>

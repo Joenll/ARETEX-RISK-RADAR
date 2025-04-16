@@ -1,48 +1,90 @@
+// src/app/api/users/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
-import UserProfile from "@/models/UserProfile"; // Ensure this path is correct
-import { getToken } from "next-auth/jwt"; // Use standard getToken for auth check
-import mongoose from "mongoose"; // Import mongoose if needed for specific error types
+import User, { UserStatus } from "@/models/User"; // Import UserStatus
+import UserProfile from "@/models/UserProfile";
+import { getToken } from "next-auth/jwt";
+import mongoose from "mongoose";
 
-// GET all users (Admin only)
-export async function GET(req: NextRequest): Promise<NextResponse> { // Use NextRequest and explicit return type
+// Helper function to parse sort parameter
+const parseSortParam = (sortParam: string | null): { [key: string]: 1 | -1 } => {
+  if (!sortParam) {
+    return { createdAt: -1 }; // Default sort
+  }
+  const [field, direction] = sortParam.split(':');
+  const sortOrder = direction?.toLowerCase() === 'asc' ? 1 : -1;
+  return { [field]: sortOrder };
+};
+
+
+// GET users with filtering, sorting, and pagination (Admin only)
+export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    // 1. Authentication and Authorization Check using getToken
+    // 1. Authentication and Authorization Check
     const token = await getToken({ req, secret: process.env.SESSION_SECRET });
-
-    // Check if token exists and user is admin
-    if (!token) {
-      // No session token found
-      return NextResponse.json({ message: "Authentication required." }, { status: 401 });
-    }
-    if (token.role !== "admin") {
-      // User is authenticated but not an admin
-      return NextResponse.json({ message: "Forbidden: Admin role required." }, { status: 403 });
+    if (!token || token.role !== "admin") {
+      return NextResponse.json(
+        { message: token ? "Forbidden: Admin role required." : "Authentication required." },
+        { status: token ? 403 : 401 }
+      );
     }
 
     // 2. Connect to Database
     await connectDB();
 
-    // 3. Fetch users, populate profiles, exclude password, sort, and use lean
-    const users = await User.find()
-      .populate<{ profile: typeof UserProfile }>({ // Add type hint for populated field
+    // --- NEW: Read Query Parameters ---
+    const { searchParams } = req.nextUrl;
+    const status = searchParams.get("status") as UserStatus | null; // Get status filter
+    const limitParam = searchParams.get("limit");
+    const sortParam = searchParams.get("sort"); // Get sort parameter (e.g., 'createdAt:desc')
+
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined; // Parse limit, default to no limit if not provided
+    const sortOptions = parseSortParam(sortParam); // Parse sort options
+
+    // --- NEW: Build Query Object ---
+    const query: mongoose.FilterQuery<typeof User> = {}; // Use FilterQuery type
+    if (status) {
+        // Validate status if necessary (e.g., ensure it's 'pending', 'approved', 'rejected')
+        if (['pending', 'approved', 'rejected'].includes(status)) {
+             query.status = status;
+        } else {
+            console.warn(`Invalid status parameter received: ${status}`);
+            // Optionally return an error or ignore invalid status
+            // return NextResponse.json({ message: "Invalid status parameter." }, { status: 400 });
+        }
+    }
+    // Add other potential filters here (e.g., search term) if needed in the future
+
+    console.log("Executing User query:", JSON.stringify(query, null, 2));
+    console.log("Sort options:", sortOptions);
+    console.log("Limit:", limit);
+    // --- End Query Parameter Handling ---
+
+
+    // 3. Fetch users based on query, sort, and limit
+    let userQuery = User.find(query) // Apply the filter query
+      .populate<{ profile: typeof UserProfile }>({
         path: "profile",
         model: UserProfile,
-        // --- Select specific fields from profile, including 'sex' ---
-        select: 'firstName lastName employeeNumber workPosition team sex birthdate', // Added 'sex' and 'birthdate'
+        select: 'firstName lastName employeeNumber workPosition team sex birthdate',
       })
-      .select("-password") // Exclude password from the User object
-      .sort({ createdAt: -1 }) // Optional: Sort by creation date descending
-      .lean(); // Use lean for performance
+      .select("-password")
+      .sort(sortOptions); // Apply sorting
 
-    // 4. Return the fetched users directly as an array
-    return NextResponse.json(users, { status: 200 }); // Return array directly
+    // Apply limit only if it's a valid number > 0
+    if (limit && !isNaN(limit) && limit > 0) {
+        userQuery = userQuery.limit(limit); // Apply limit
+    }
+
+    const users = await userQuery.lean(); // Execute the query
+
+    // 4. Return the fetched users
+    // Note: For the dashboard, we only needed the array.
+    // If you reuse this for the main User Management page, you might need total count as well.
+    return NextResponse.json(users, { status: 200 });
 
   } catch (error) {
-    console.error("API Error fetching users:", error); // Log specific API error source
-    // Add more specific error handling if needed
-    // if (error instanceof mongoose.Error.ValidationError) { ... }
-    return NextResponse.json({ message: "An error occurred while fetching users." }, { status: 500 }); // Slightly more descriptive generic error
+    console.error("API Error fetching users:", error);
+    return NextResponse.json({ message: "An error occurred while fetching users." }, { status: 500 });
   }
 }
