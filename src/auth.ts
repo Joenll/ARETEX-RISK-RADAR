@@ -4,41 +4,44 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 // Import the User model and the IUser interface
 import User, { IUser, UserStatus } from "@/models/User";
+// --- Import UserProfile model ---
+import UserProfile from "@/models/UserProfile";
 import mongoose from "mongoose"; // Import mongoose for ObjectId check
 
 // --- Extend the NextAuth types ---
 declare module "next-auth" {
-  /**
-   * Returned by `useSession`, `getSession` and received as a prop on the `SessionProvider` React Context
-   */
   interface Session {
     user: {
       id: string;
       email: string;
       role: "admin" | "user";
       profile: string; // Profile ID as string
-      status: UserStatus; // Add status
+      status: UserStatus;
+      // --- Add name property ---
+      name: string; // Or firstName/lastName if you prefer
     };
   }
 
-  // The User object returned by the authorize callback
   interface User {
     id: string;
     email: string;
     role: "admin" | "user";
     profile: string; // Profile ID as string
-    status: UserStatus; // Add status
+    status: UserStatus;
+    // --- Add name property ---
+    name: string; // Or firstName/lastName
   }
 }
 
 declare module "next-auth/jwt" {
-  /** Returned by the `jwt` callback and `getToken`, when using JWT sessions */
   interface JWT {
     id: string;
     email: string;
     role: "admin" | "user";
     profile: string; // Profile ID as string
-    status: UserStatus; // Add status
+    status: UserStatus;
+    // --- Add name property ---
+    name: string; // Or firstName/lastName
   }
 }
 // --- End type extensions ---
@@ -51,34 +54,27 @@ export const authOptions: AuthOptions = {
         email: { label: "Email", type: "text", placeholder: "you@example.com" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials): Promise<any> { // Using Promise<any> for simplicity, define specific type if preferred
+      async authorize(credentials): Promise<any> {
         if (!credentials?.email || !credentials?.password) {
-            // It's better practice to throw specific errors or return null
-            // throw new Error("Email and password required");
             console.error("Authorize attempt missing credentials");
-            return null; // Indicate failure
+            return null;
         }
 
         await connectDB();
 
         try {
-          // Find user by email and explicitly select password and status
-          // Use .lean() for a plain JS object
           const user = await User.findOne({ email: credentials.email })
-                                 .select('+password +status') // Explicitly select password and status
-                                 .lean(); // Use lean for plain object
+                                 .select('+password +status +profile') // Ensure profile is selected
+                                 .lean();
 
           if (!user) {
             console.log(`Authorize failed: No user found for email ${credentials.email}`);
-            // Throwing generic error is good practice for security
             throw new Error("Invalid email or password");
           }
 
-          // Check password
-          // Ensure user.password exists before comparing (due to lean() and potential DB issues)
           if (!user.password) {
               console.error(`Authorize failed: Password field missing for user ${credentials.email}`);
-              throw new Error("Authentication error"); // Internal error
+              throw new Error("Authentication error");
           }
           const isValidPassword = await bcrypt.compare(credentials.password, user.password);
           if (!isValidPassword) {
@@ -86,85 +82,90 @@ export const authOptions: AuthOptions = {
             throw new Error("Invalid email or password");
           }
 
-          // --- Check User Status ---
           if (user.status !== 'approved') {
             console.log(`Authorize failed: User status is '${user.status}' for email ${credentials.email}`);
-            // Throw a specific error message for the frontend
             throw new Error("Account not approved");
           }
-          // --- End Status Check ---
 
-          console.log(`Authorize successful for email ${credentials.email}`);
-
-          // Ensure profile is valid and convert ObjectId to string
-          const profileIdString = user.profile instanceof mongoose.Types.ObjectId
-            ? user.profile.toString()
-            : typeof user.profile === 'string' ? user.profile : ''; // Handle potential string case or default
-
-          if (!profileIdString) {
-              console.error(`Authorize failed: Invalid or missing profile ID for user ${credentials.email}`);
+          // --- Fetch User Profile ---
+          if (!user.profile || !mongoose.Types.ObjectId.isValid(user.profile.toString())) {
+              console.error(`Authorize failed: Invalid or missing profile reference for user ${credentials.email}`);
               throw new Error("User profile configuration error");
           }
 
-          // Return the user object for the JWT/session callbacks
+          const userProfile = await UserProfile.findOne({ user: user._id }).lean(); // Find profile by user ID
+
+          if (!userProfile) {
+              console.error(`Authorize failed: Could not find profile for user ${credentials.email} (Profile Ref: ${user.profile.toString()})`);
+              throw new Error("User profile data not found");
+          }
+          // --- End Fetch User Profile ---
+
+
+          console.log(`Authorize successful for email ${credentials.email}`);
+
+          // Combine first and last name for display
+          const fullName = `${userProfile.firstName} ${userProfile.lastName}`;
+
+          // Return the user object including the name
           return {
             id: user._id.toString(),
             email: user.email,
             role: user.role,
-            profile: profileIdString, // Pass profile ID as string
-            status: user.status // Pass status
+            profile: user.profile.toString(), // Pass profile ID as string
+            status: user.status,
+            // --- Add name ---
+            name: fullName,
           };
 
         } catch (error: any) {
             console.error("Error during authorization:", error.message || error);
-            // Re-throw specific known errors, or a generic one
-            if (error.message === "Invalid email or password" || error.message === "Account not approved" || error.message === "User profile configuration error") {
+            if (error.message === "Invalid email or password" || error.message === "Account not approved" || error.message === "User profile configuration error" || error.message === "User profile data not found") {
                 throw error;
             }
-            throw new Error("An internal error occurred during authentication."); // Generic fallback
+            throw new Error("An internal error occurred during authentication.");
         }
       }
     })
   ],
   pages: {
-    signIn: "/", // Your sign-in page is at the root
-    // error: '/auth/error', // Optional: Custom error page
+    signIn: "/",
   },
   session: {
       strategy: "jwt" as const,
-      maxAge: 24 * 60 * 60, // 1 day session only
+      maxAge: 24 * 60 * 60, // 1 day
   },
   callbacks: {
-    async jwt({ token, user, account, profile }) {
-      // The 'user' object is available on initial sign-in
+    async jwt({ token, user }) {
+      // Pass user data to token on initial sign in
       if (user) {
         token.id = user.id;
-        token.email = user.email; // Ensure email is present
+        token.email = user.email;
         token.role = user.role;
-        token.profile = user.profile; // Should be string from authorize
-        token.status = user.status; // Add status
+        token.profile = user.profile;
+        token.status = user.status;
+        // --- Add name to token ---
+        token.name = user.name;
       }
       return token;
     },
     async session({ session, token }) {
-      // The 'token' object contains the data from the 'jwt' callback
+      // Pass data from token to session
       if (token) {
         session.user = {
           id: token.id,
           email: token.email,
           role: token.role,
           profile: token.profile,
-          status: token.status // Add status to session user
+          status: token.status,
+          // --- Add name to session user ---
+          name: token.name
         };
       }
       return session;
     }
   },
   secret: process.env.SESSION_SECRET,
-  // Optional: Add debug logging in development
-  // debug: process.env.NODE_ENV === 'development',
 };
 
-// Export handlers for Next.js API routes (App Router)
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
-// If using Pages Router, you might export default NextAuth(authOptions)

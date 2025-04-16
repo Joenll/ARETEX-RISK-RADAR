@@ -1,16 +1,21 @@
+// src/models/UserProfile.ts
 import mongoose, { Schema, Document, models, Model } from 'mongoose';
 
-// Interface representing a UserProfile document in MongoDB.
+// Define possible values for sex
+export type UserSex = 'Male' | 'Female' | 'Other' | 'Prefer not to say';
+
+// Interface representing an Employee Profile document in MongoDB.
 export interface IUserProfile extends Document {
   user: mongoose.Schema.Types.ObjectId; // Reference to User model
-  badgeNumber: string;
-  rank: string;
+  employeeNumber: string; // Renamed from badgeNumber
+  workPosition: string;   // Renamed from rank (e.g., "IT-Developer")
   firstName: string;
   lastName: string;
   birthdate: Date;
-  department: string;
-  createdAt: Date; // Timestamps added by schema option
-  updatedAt: Date; // Timestamps added by schema option
+  sex: UserSex;
+  team: string;           // Renamed from department (e.g., "Development Team")
+  createdAt: Date;        // Timestamps added by schema option
+  updatedAt: Date;        // Timestamps added by schema option
 }
 
 // Schema corresponding to the UserProfile document interface.
@@ -22,12 +27,20 @@ const UserProfileSchema = new Schema<IUserProfile>(
       required: true,
       unique: true, // A user should only have one profile
     },
-    badgeNumber: { type: String, required: true, trim: true }, // Added trim
-    rank: { type: String, required: true, trim: true }, // Added trim
-    firstName: { type: String, required: true, trim: true }, // Added trim
-    lastName: { type: String, required: true, trim: true }, // Added trim
+    // Renamed from badgeNumber
+    employeeNumber: { type: String, required: true, trim: true },
+    // Renamed from rank
+    workPosition: { type: String, required: true, trim: true },
+    firstName: { type: String, required: true, trim: true },
+    lastName: { type: String, required: true, trim: true },
     birthdate: { type: Date, required: true },
-    department: { type: String, required: true, trim: true }, // Added trim
+    sex: {
+      type: String,
+      enum: ['Male', 'Female', 'Other', 'Prefer not to say'], // Define allowed values
+      required: [true, 'Sex/Gender is required'],
+    },
+    // Renamed from department
+    team: { type: String, required: true, trim: true },
   },
   {
     // Add timestamps for createdAt and updatedAt automatically

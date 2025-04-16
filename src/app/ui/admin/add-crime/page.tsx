@@ -1,11 +1,17 @@
+// src/app/ui/admin/add-crime/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation"; // Import useRouter
 import { fetchCoordinates } from "@/app/utils/geocoder";
 import { isPSGCCode } from "@/app/utils/ispsgc";
 import LocationDropdown from "@/app/components/LocationDropdown";
 import Button from "@/app/components/Button";
 
+// --- Define consistent input/select styling ---
+const inputFieldStyles = "block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm";
+const labelStyles = "block text-gray-700 text-sm font-bold mb-1"; // Added label styles
+const selectStyles = `${inputFieldStyles} bg-white`; // Base select styles
 
 // Debounce function
 function debounce<T extends (...args: any[]) => void>(
@@ -36,8 +42,8 @@ export default function CrimeReportForm() {
     province_name: "",
     municipality_city_name: "",
     barangay_name: "",
-    latitude: "" as string | number, // Change the type to string | number
-    longitude: "" as string | number, // Change the type to string | number
+    latitude: "" as string | number,
+    longitude: "" as string | number,
     crime_type: "",
     crime_type_category: "",
     case_status: "",
@@ -51,6 +57,10 @@ export default function CrimeReportForm() {
   });
   const [isFetchingCoordinates, setIsFetchingCoordinates] = useState(false);
   const [previousFullAddress, setPreviousFullAddress] = useState("");
+  const [error, setError] = useState<string | null>(null); // Add error state
+  const [success, setSuccess] = useState<string | null>(null); // Add success state
+  const [isLoading, setIsLoading] = useState(false); // Add loading state for submission
+  const router = useRouter(); // Initialize router
 
   // Handle input changes
   const handleChange = (
@@ -121,7 +131,13 @@ export default function CrimeReportForm() {
             latitude: coordinates.latitude,
             longitude: coordinates.longitude,
           }));
+        } else {
+           // Optionally clear coordinates if geocoding fails for a valid address string
+           setFormData((prev) => ({ ...prev, latitude: "", longitude: "" }));
         }
+      } else if (fullAddress === "") {
+          // Clear coordinates if the address becomes empty
+          setFormData((prev) => ({ ...prev, latitude: "", longitude: "" }));
       }
     }
     setPreviousFullAddress(fullAddress);
@@ -136,12 +152,27 @@ export default function CrimeReportForm() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form Data BEFORE stringify:", formData); // Add this line
-  
+    setIsLoading(true); // Set loading state for submission
+    setError(null);
+    setSuccess(null);
+    console.log("Form Data BEFORE stringify:", formData);
+
+    // Basic validation example (add more as needed)
+    if (!formData.crime_id || !formData.date || !formData.time || !formData.crime_type) {
+        setError("Please fill in all required Crime Details.");
+        setIsLoading(false);
+        return;
+    }
+    if (!formData.region || !formData.province || !formData.municipality_city || !formData.barangay) {
+        setError("Please select the full location (Region, Province, Municipality/City, Barangay).");
+        setIsLoading(false);
+        return;
+    }
+
     try {
       const jsonString = JSON.stringify(formData);
-      console.log("JSON String:", jsonString); // Add this line
-  
+      console.log("JSON String:", jsonString);
+
       const response = await fetch("/api/crime-reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -150,211 +181,174 @@ export default function CrimeReportForm() {
 
       const result = await response.json();
       if (response.ok) {
-        alert("Crime report submitted successfully!");
+        setSuccess("Crime report submitted successfully!");
+        // Reset form
         setFormData({
-          crime_id: "",
-          date: "",
-          time: "",
-          region: "",
-          province: "",
-          municipality_city: "",
-          barangay: "",
-          region_name: "",
-          province_name: "",
-          municipality_city_name: "",
-          barangay_name: "",
-          latitude: "",
-          longitude: "",
-          crime_type: "",
-          crime_type_category: "",
-          case_status: "",
-          event_proximity: "",
-          crime_occurred_indoors_or_outdoors: "",
-          house_building_number: "",
-          street_name: "",
-          purok_block_lot: "",
-          zip_code: "",
-          day_of_week: "",
+          crime_id: "", date: "", time: "", region: "", province: "", municipality_city: "", barangay: "",
+          region_name: "", province_name: "", municipality_city_name: "", barangay_name: "",
+          latitude: "", longitude: "", crime_type: "", crime_type_category: "", case_status: "",
+          event_proximity: "", crime_occurred_indoors_or_outdoors: "", house_building_number: "",
+          street_name: "", purok_block_lot: "", zip_code: "", day_of_week: "",
         });
+        // Optionally redirect after a delay
+        // setTimeout(() => router.push('/some-success-page'), 2000);
       } else {
-        alert("Error: " + result.error);
+        throw new Error(result.message || result.error || "Failed to submit crime report.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting crime report:", error);
-      alert("Submission failed.");
+      setError(error.message || "Submission failed. Please try again.");
+    } finally {
+        setIsLoading(false); // Clear loading state
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-black rounded-md shadow-md">
-      <h2 className="text-2xl font-bold mb-4">Report a Crime</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    // Apply container styling
+    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-3xl mx-auto">
+       {/* Back Button */}
+       <button
+            onClick={() => router.back()} // Assuming you want a back button
+            className="mb-4 text-sm text-blue-600 hover:text-blue-800 flex items-center"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back {/* Adjust text as needed */}
+        </button>
+
+      {/* Title */}
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">Report a Crime</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Error/Success Messages */}
+        {error && <p className="text-center text-sm text-red-700 bg-red-50 p-3 rounded-md">{error}</p>}
+        {success && <p className="text-center text-sm text-green-700 bg-green-50 p-3 rounded-md">{success}</p>}
+
         {/* Crime Details */}
-        <div className="border p-4 rounded-md">
-          <h3 className="font-semibold mb-2">Crime Details</h3>
-          <input
-            type="text"
-            name="crime_id"
-            placeholder="Crime ID"
-            value={formData.crime_id}
-            onChange={handleChange}
-            required
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="date"
-            name="date"
-            value={formData.date}
-            onChange={handleChange}
-            required
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="time"
-            name="time"
-            value={formData.time}
-            onChange={handleChange}
-            required
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="text"
-            name="day_of_week"
-            placeholder="Day of the Week"
-            value={formData.day_of_week}
-            onChange={handleChange}
-            required
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="text"
-            name="crime_type"
-            placeholder="Crime Type"
-            value={formData.crime_type}
-            onChange={handleChange}
-            required
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="text"
-            name="crime_type_category"
-            placeholder="Crime Type Category"
-            value={formData.crime_type_category}
-            onChange={handleChange}
-            required
-            className="w-full border p-2 rounded mb-2"
-          />
-          <select
-            name="case_status"
-            value={formData.case_status}
-            onChange={handleChange}
-            className="w-full border p-2 rounded bg-black text-white mb-2"
-          >
-            <option value="" className="bg-white text-black">
-              Select Case Status
-            </option>
-            <option value="Ongoing" className="bg-white text-black">
-              Ongoing
-            </option>
-            <option value="Resolved" className="bg-white text-black">
-              Resolved
-            </option>
-            <option value="Pending" className="bg-white text-black">
-              Pending
-            </option>
-          </select>
-          <input
-            type="text"
-            name="event_proximity"
-            placeholder="Event Proximity"
-            value={formData.event_proximity}
-            onChange={handleChange}
-            className="w-full border p-2 rounded mb-2"
-          />
-          <select
-            name="crime_occurred_indoors_or_outdoors"
-            value={formData.crime_occurred_indoors_or_outdoors}
-            onChange={handleChange}
-            className="w-full border p-2 rounded bg-black text-white mb-2"
-          >
-            <option value="" className="bg-white text-black">
-              Select Location
-            </option>
-            <option value="Indoors" className="bg-white text-black">
-              Indoors
-            </option>
-            <option value="Outdoors" className="bg-white text-black">
-              Outdoors
-            </option>
-          </select>
-        </div>
+        <fieldset className="border border-gray-200 rounded-lg p-4">
+            <legend className="text-lg font-semibold px-2 text-gray-700">Crime Details</legend>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div>
+                    <label htmlFor="crime_id" className={labelStyles}>Crime ID <span className="text-red-500">*</span></label>
+                    <input type="text" id="crime_id" name="crime_id" placeholder="e.g., CR-2024-001" value={formData.crime_id} onChange={handleChange} required className={inputFieldStyles} />
+                </div>
+                <div>
+                    <label htmlFor="date" className={labelStyles}>Date <span className="text-red-500">*</span></label>
+                    <input type="date" id="date" name="date" value={formData.date} onChange={handleChange} required className={inputFieldStyles} />
+                </div>
+                <div>
+                    <label htmlFor="time" className={labelStyles}>Time <span className="text-red-500">*</span></label>
+                    <input type="time" id="time" name="time" value={formData.time} onChange={handleChange} required className={inputFieldStyles} />
+                </div>
+                <div>
+                    <label htmlFor="day_of_week" className={labelStyles}>Day of Week <span className="text-red-500">*</span></label>
+                    <input type="text" id="day_of_week" name="day_of_week" placeholder="e.g., Monday" value={formData.day_of_week} onChange={handleChange} required className={inputFieldStyles} />
+                </div>
+                <div>
+                    <label htmlFor="crime_type" className={labelStyles}>Crime Type <span className="text-red-500">*</span></label>
+                    <input type="text" id="crime_type" name="crime_type" placeholder="e.g., Theft" value={formData.crime_type} onChange={handleChange} required className={inputFieldStyles} />
+                </div>
+                <div>
+                    <label htmlFor="crime_type_category" className={labelStyles}>Crime Category <span className="text-red-500">*</span></label>
+                    <input type="text" id="crime_type_category" name="crime_type_category" placeholder="e.g., Property Crime" value={formData.crime_type_category} onChange={handleChange} required className={inputFieldStyles} />
+                </div>
+                <div>
+                    <label htmlFor="case_status" className={labelStyles}>Case Status</label>
+                    <select id="case_status" name="case_status" value={formData.case_status} onChange={handleChange} className={selectStyles}>
+                        <option value="">Select Status</option>
+                        <option value="Ongoing">Ongoing</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Pending">Pending</option>
+                        {/* Add more statuses if needed */}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="event_proximity" className={labelStyles}>Event Proximity</label>
+                    <input type="text" id="event_proximity" name="event_proximity" placeholder="e.g., Near School" value={formData.event_proximity} onChange={handleChange} className={inputFieldStyles} />
+                </div>
+                <div>
+                    <label htmlFor="crime_occurred_indoors_or_outdoors" className={labelStyles}>Occurred</label>
+                    <select id="crime_occurred_indoors_or_outdoors" name="crime_occurred_indoors_or_outdoors" value={formData.crime_occurred_indoors_or_outdoors} onChange={handleChange} className={selectStyles}>
+                        <option value="">Select Location Type</option>
+                        <option value="Indoors">Indoors</option>
+                        <option value="Outdoors">Outdoors</option>
+                    </select>
+                </div>
+            </div>
+        </fieldset>
 
         {/* Location Details */}
-        <div className="border p-4 rounded-md">
-          <h3 className="font-semibold mb-2">Location Details</h3>
+        <fieldset className="border border-gray-200 rounded-lg p-4">
+            <legend className="text-lg font-semibold px-2 text-gray-700">Location Details</legend>
+            <div className="space-y-4 pt-2"> {/* Use space-y for vertical spacing */}
+                {/* Location Dropdowns */}
+                {/* Apply consistent styling within LocationDropdown component if possible */}
+                <LocationDropdown
+                    onSelect={handleLocationSelect}
+                    selectedRegionFromParent={formData.region}
+                    selectedProvinceFromParent={formData.province}
+                    selectedMunicipalityFromParent={formData.municipality_city}
+                    selectedBarangayFromParent={formData.barangay}
+                />
 
-          {/* Location Dropdowns (Region, Province, Municipality, Barangay) */}
-          <LocationDropdown
-            onSelect={handleLocationSelect}
-            selectedRegionFromParent={formData.region}
-            selectedProvinceFromParent={formData.province}
-            selectedMunicipalityFromParent={formData.municipality_city}
-            selectedBarangayFromParent={formData.barangay}
-          />
+                {/* Additional Location Fields */}
+                <h4 className="font-medium text-gray-600 pt-2">Specific Address Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="house_building_number" className={labelStyles}>House/Bldg No.</label>
+                        <input type="text" id="house_building_number" name="house_building_number" placeholder="e.g., 123" value={formData.house_building_number} onChange={handleChange} className={inputFieldStyles} />
+                    </div>
+                    <div>
+                        <label htmlFor="street_name" className={labelStyles}>Street Name</label>
+                        <input type="text" id="street_name" name="street_name" placeholder="e.g., Main St" value={formData.street_name} onChange={handleChange} className={inputFieldStyles} />
+                    </div>
+                    <div>
+                        <label htmlFor="purok_block_lot" className={labelStyles}>Purok/Block/Lot</label>
+                        <input type="text" id="purok_block_lot" name="purok_block_lot" placeholder="e.g., Block 5" value={formData.purok_block_lot} onChange={handleChange} className={inputFieldStyles} />
+                    </div>
+                    <div>
+                        <label htmlFor="zip_code" className={labelStyles}>Zip Code</label>
+                        <input type="text" id="zip_code" name="zip_code" placeholder="e.g., 1000" value={formData.zip_code} onChange={handleChange} className={inputFieldStyles} />
+                    </div>
+                </div>
 
-          {/* Additional Location Fields */}
-          <h3 className="font-semibold mb-2 mt-2">Specific Address Details</h3>
-          <input
-            type="text"
-            name="house_building_number"
-            placeholder="House/Building Number"
-            value={formData.house_building_number}
-            onChange={handleChange}
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="text"
-            name="street_name"
-            placeholder="Street Name"
-            value={formData.street_name}
-            onChange={handleChange}
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="text"
-            name="purok_block_lot"
-            placeholder="Purok/Block/Lot"
-            value={formData.purok_block_lot}
-            onChange={handleChange}
-            className="w-full border p-2 rounded mb-2"
-          />
-          <input
-            type="text"
-            name="zip_code"
-            placeholder="Zip Code"
-            value={formData.zip_code}
-            onChange={handleChange}
-            className="w-full border p-2 rounded mb-2"
-          />
-        </div>
-        <div className="flex items-center justify-between mt-4">
-          {isFetchingCoordinates && (
-            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-gray-900"></div>
-          )}
-          {formData.latitude && formData.longitude && (
-            <p>
-              Coordinates: {formData.latitude}, {formData.longitude}
-            </p>
-          )}
-        </div>
-        {/* Submit Button */}
-        <Button
-                type="submit"
-                variant="submit" 
-                className="w-full" 
+                {/* Coordinate Display */}
+                <div className="flex items-center justify-start space-x-3 pt-2 min-h-[30px]"> {/* Added min-height */}
+                    {isFetchingCoordinates && (
+                        <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+                    )}
+                    {formData.latitude && formData.longitude ? (
+                        <p className="text-sm text-gray-600">
+                        Coordinates: {Number(formData.latitude).toFixed(6)}, {Number(formData.longitude).toFixed(6)}
+                        </p>
+                    ) : !isFetchingCoordinates && (formData.house_building_number || formData.street_name || formData.barangay_name) ? (
+                        <p className="text-sm text-orange-600">Could not determine coordinates.</p>
+                    ) : null}
+                </div>
+            </div>
+        </fieldset>
+
+        {/* Action Buttons */}
+        <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3 justify-end">
+            <Button
+                type="button"
+                variant="back"
+                onClick={() => router.back()}
+                disabled={isLoading}
             >
-                Submit
+                Cancel
             </Button>
+            <Button
+                type="submit"
+                variant="submit"
+                className="min-w-[120px]" // Add min-width to prevent layout shift
+                isLoading={isLoading}
+                disabled={isLoading}
+            >
+                {isLoading ? 'Submitting...' : 'Submit Report'}
+            </Button>
+        </div>
       </form>
     </div>
   );

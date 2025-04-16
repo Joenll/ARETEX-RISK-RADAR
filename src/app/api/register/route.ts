@@ -2,8 +2,22 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-import UserProfile from "@/models/UserProfile";
+// Import UserSex type along with UserProfile
+import UserProfile, { UserSex } from "@/models/UserProfile";
 import mongoose, { Types } from "mongoose"; // Import 'Types'
+
+// Define the expected request body structure
+interface RegisterRequestBody {
+  email?: string;
+  password?: string;
+  employeeNumber?: string;
+  workPosition?: string;
+  firstName?: string;
+  lastName?: string;
+  birthdate?: string; // Assuming birthdate comes as string initially
+  team?: string;
+  sex?: UserSex; // Add sex field
+}
 
 export async function POST(req: Request) {
   // --- Optional: Start a Mongoose Session for Transaction ---
@@ -15,18 +29,38 @@ export async function POST(req: Request) {
     const {
       email,
       password,
-      badgeNumber,
-      rank,
+      employeeNumber,
+      workPosition,
       firstName,
       lastName,
       birthdate,
-      department,
+      team,
+      sex, // Destructure sex
       // role is intentionally ignored from input, forced to 'user'
-    } = await req.json();
+    }: RegisterRequestBody = await req.json();
 
     // --- Input Validation (Basic) ---
-    if (!email || !password || !firstName || !lastName || !badgeNumber || !rank || !birthdate || !department) {
-      return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
+    // Add sex to the validation check
+    if (!email || !password || !firstName || !lastName || !employeeNumber || !workPosition || !birthdate || !team || !sex) {
+      // Construct a more detailed error message
+      const missingFields = [
+        !email && 'email',
+        !password && 'password',
+        !firstName && 'firstName',
+        !lastName && 'lastName',
+        !employeeNumber && 'employeeNumber',
+        !workPosition && 'workPosition',
+        !birthdate && 'birthdate',
+        !team && 'team',
+        !sex && 'sex'
+      ].filter(Boolean).join(', ');
+      return NextResponse.json({ message: `Missing required fields: ${missingFields}` }, { status: 400 });
+    }
+
+    // --- Optional: Validate sex value against enum ---
+    const validSexValues: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
+    if (!validSexValues.includes(sex)) {
+        return NextResponse.json({ message: `Invalid value provided for sex. Must be one of: ${validSexValues.join(', ')}` }, { status: 400 });
     }
 
     // --- Check if user already exists ---
@@ -49,17 +83,18 @@ export async function POST(req: Request) {
 
     const newUserProfile = new UserProfile({
       user: newUser._id, // Link to the user instance's ID
-      badgeNumber,
-      rank,
+      employeeNumber,
+      workPosition,
       firstName,
       lastName,
       birthdate,
-      department,
+      team,
+      sex, // Add sex field here
     });
 
-   
+
     // --- Assign the profile ID back to the user instance ---
-newUser.profile = newUserProfile._id as mongoose.Types.ObjectId; // Add type assertion
+    newUser.profile = newUserProfile._id as mongoose.Types.ObjectId; // Add type assertion
 
 
     // --- Save documents (within transaction if using sessions) ---

@@ -35,25 +35,40 @@ const DashboardHeader = () => {
   }
 
   // --- Get user details from session ---
-  const userDisplayName = session?.user?.email || "User";
+  // Use name if available, fallback to email, then "User"
+  const userDisplayName = session?.user?.name || session?.user?.email || "User";
   const userRole = session?.user?.role || "User";
+  // Calculate initial based on the display name (which is now the actual name)
   const userInitial = userDisplayName.charAt(0).toUpperCase();
   const displayRole = userRole.charAt(0).toUpperCase() + userRole.slice(1);
 
   return (
-    // Added justify-end since the left logo is removed
-    <header className="w-full flex items-center justify-end px-4 sm:px-8 py-3 bg-gray-100 shadow-md h-16 sticky top-0 z-40">
-      {/* Left Section: Logo REMOVED */}
-      {/* <div className="flex items-center"> ... </div> */}
+    <header className="w-full flex items-center justify-between px-4 sm:px-8 py-3 bg-gray-100 shadow-md h-16 sticky top-0 z-40">
+      {/* Left Section: Logo */}
+      <div className="flex items-center">
+        <img
+          src="/riskradar.png"
+          alt="Risk Radar Logo"
+          className="h-9 mr-1" // Slightly increased size
+        />
+        <div className="flex items-center space-x-1">
+          <img src="/aretex.png" alt="Aretex" className="h-4" /> {/* Slightly increased size */}
+          {/* Increased font size to text-lg */}
+          <span className="text-lg font-bold text-red-500 mt-1">RISK</span>
+          <span className="text-lg font-bold text-gray-800 mt-1">RADAR</span>
+        </div>
+      </div>
 
       {/* Right Section: User Info & Dropdown */}
       <div className="flex items-center space-x-3 sm:space-x-4">
         <div className="text-right hidden sm:block">
+          {/* Display the user's name */}
           <p className="text-gray-800 font-semibold text-sm sm:text-base truncate max-w-[150px]">
             {userDisplayName}
           </p>
         </div>
         <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-orange-500 overflow-hidden flex items-center justify-center bg-orange-500 text-white font-bold text-lg">
+          {/* Display the initial based on the name */}
           <span>{userInitial}</span>
         </div>
         <div className="relative" ref={dropdownRef}>

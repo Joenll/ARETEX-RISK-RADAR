@@ -29,10 +29,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> { // Use Next
       .populate<{ profile: typeof UserProfile }>({ // Add type hint for populated field
         path: "profile",
         model: UserProfile,
-        // Optionally select specific fields from profile if needed:
-        // select: 'firstName lastName rank department',
+        // --- Select specific fields from profile, including 'sex' ---
+        select: 'firstName lastName employeeNumber workPosition team sex birthdate', // Added 'sex' and 'birthdate'
       })
-      .select("-password") // Exclude password
+      .select("-password") // Exclude password from the User object
       .sort({ createdAt: -1 }) // Optional: Sort by creation date descending
       .lean(); // Use lean for performance
 

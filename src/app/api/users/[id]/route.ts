@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User, { IUser, UserStatus } from "@/models/User"; // Import IUser and UserStatus
-import UserProfile, { IUserProfile } from "@/models/UserProfile";
+// --- Import UserSex type along with IUserProfile ---
+import UserProfile, { IUserProfile, UserSex } from "@/models/UserProfile";
 // Remove requireRole if using getToken for all checks
 // import { requireRole } from "@/middleware/authMiddleware";
 import { getToken } from "next-auth/jwt";
@@ -10,10 +11,11 @@ import mongoose from "mongoose"; // Import mongoose
 // Define allowed roles and statuses for validation
 const ALLOWED_ROLES: IUser['role'][] = ['user', 'admin']; // Adjust as needed
 const ALLOWED_STATUSES: UserStatus[] = ['pending', 'approved', 'rejected'];
+// --- Define allowed sex values for validation ---
+const ALLOWED_SEX_VALUES: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
 
 
 // --- GET user by ID ---
-// (Keep existing GET handler, but ensure it uses getToken for auth check if requireRole is removed)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     await connectDB();
 
@@ -25,14 +27,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!token || token.role !== 'admin') {
        return NextResponse.json({ message: 'Unauthorized: Admin role required' }, { status: 403 });
     }
-    // Option 2: Admin OR User for self (uncomment if needed)
-    // if (!token) {
-    //    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    // }
-    // if (token.role !== 'admin' && token.sub !== params.id) {
-    //    return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    // }
-
 
     try {
         const { id } = params;
@@ -41,12 +35,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             return NextResponse.json({ message: "Invalid user ID format" }, { status: 400 });
         }
 
-        // Fetch user and populate profile (as in the previous good version)
+        // Fetch user and populate profile (including sex)
         const user = await User.findById(id)
             .select("-password")
-            .populate<{ profile: typeof UserProfile }>({
+            .populate<{ profile: IUserProfile }>({ // Use IUserProfile type hint
                 path: "profile",
                 model: UserProfile,
+                // Explicitly select fields needed by the frontend edit page
+                select: 'firstName lastName sex'
             })
             .lean();
 
@@ -65,7 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 
 // --- PUT User Profile by ID (User self-update OR Admin update) ---
-// (This is your existing PUT handler, keep it as is for user self-service)
+// This handler remains unchanged as it correctly handles profile fields including 'sex'
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     await connectDB();
@@ -83,25 +79,26 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ message: "Invalid user ID format" }, { status: 400 });
     }
 
-    // Prepare allowed fields for profile update
-   
-    // Define the keys we explicitly allow for profile updates
-    type AllowedProfileUpdateKeys = keyof Pick<IUserProfile, 'firstName' | 'lastName' | 'badgeNumber' | 'rank' | 'department' | 'birthdate'>;
-
-    // Prepare allowed fields for profile update, typed correctly
+    // --- Prepare allowed fields for profile update ---
+    type AllowedProfileUpdateKeys = keyof Pick<IUserProfile, 'firstName' | 'lastName' | 'employeeNumber' | 'workPosition' | 'team' | 'birthdate' | 'sex'>;
     const allowedProfileUpdates: Partial<Pick<IUserProfile, AllowedProfileUpdateKeys>> = {};
+    const profileFields: AllowedProfileUpdateKeys[] = ['firstName', 'lastName', 'employeeNumber', 'workPosition', 'team', 'birthdate', 'sex'];
 
-    // Use the specific keys type for the array
-    const profileFields: AllowedProfileUpdateKeys[] = ['firstName', 'lastName', 'badgeNumber', 'rank', 'department', 'birthdate'];
-
-    // Iterate using the correctly typed keys
     profileFields.forEach(field => {
-        // Check if the incoming body actually has this specific field
         if (body.hasOwnProperty(field)) {
-            // Now TypeScript knows 'field' is a valid key for allowedProfileUpdates
+            if (field === 'sex') {
+                if (!ALLOWED_SEX_VALUES.includes(body[field])) {
+                    // Return 400 for invalid sex value in PUT as well
+                    return NextResponse.json({ message: `Invalid sex value. Allowed: ${ALLOWED_SEX_VALUES.join(', ')}` }, { status: 400 });
+                }
+            }
             allowedProfileUpdates[field] = body[field];
         }
     });
+
+    if (Object.keys(allowedProfileUpdates).length === 0) {
+        return NextResponse.json({ message: "No valid profile fields provided for update." }, { status: 400 });
+    }
 
     // Allow admins to update any profile
     if (token.role === "admin") {
@@ -109,11 +106,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       const updatedProfile = await UserProfile.findOneAndUpdate(
           { user: id },
           { $set: allowedProfileUpdates },
-          { new: true, upsert: false, runValidators: true } // Don't create if not found
+          { new: true, upsert: false, runValidators: true }
       ).lean();
 
       if (!updatedProfile) {
-         // Check if user exists to differentiate
          const userExists = await User.findById(id).countDocuments() > 0;
          return NextResponse.json({ message: userExists ? "Profile not found for this user" : "User not found" }, { status: 404 });
       }
@@ -121,14 +117,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     // Allow users to only update their own profile
-    if (token.sub !== id) {
-      console.warn(`[API PUT /users/:id] Forbidden attempt by user ${token.email} to update profile for user ${id}`);
+    if (!token.sub || token.sub !== id) {
+      console.warn(`[API PUT /users/:id] Forbidden attempt by user ${token.email} (sub: ${token.sub}) to update profile for user ${id}`);
       return NextResponse.json({ error: "Forbidden: You can only edit your own profile" }, { status: 403 });
     }
 
     console.log(`[API PUT /users/:id] User ${token.email} updating own profile`);
     const updatedProfile = await UserProfile.findOneAndUpdate(
-        { user: token.sub }, // Find by logged-in user's ID
+        { user: token.sub },
         { $set: allowedProfileUpdates },
         { new: true, upsert: false, runValidators: true }
     ).lean();
@@ -152,8 +148,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 
-// --- PATCH User Details (Role, Status) by ID (Admin only) ---
-// <<< ADD THIS HANDLER >>>
+// --- PATCH User Details (Role, Status, Sex) by ID (Admin only) ---
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
     await connectDB();
 
@@ -172,47 +167,99 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             return NextResponse.json({ message: "Invalid user ID format" }, { status: 400 });
         }
 
-        // 3. Prepare update object for User model fields and validate
-        const updateFields: Partial<Pick<IUser, 'role' | 'status'>> = {}; // Only allow role and status updates here
+        // 3. Prepare update objects and validate
+        const userUpdateFields: Partial<Pick<IUser, 'role' | 'status'>> = {};
+        const profileUpdateFields: Partial<Pick<IUserProfile, 'sex'>> = {}; // Separate update for profile
 
+        let hasUserUpdates = false;
+        let hasProfileUpdates = false;
+
+        // Validate and prepare User updates
         if (body.hasOwnProperty('role')) {
             if (!ALLOWED_ROLES.includes(body.role)) {
                 return NextResponse.json({ message: `Invalid role. Allowed roles: ${ALLOWED_ROLES.join(', ')}` }, { status: 400 });
             }
-            // Prevent admin from accidentally removing the last admin? (Optional check)
-            updateFields.role = body.role;
+            userUpdateFields.role = body.role;
+            hasUserUpdates = true;
         }
 
         if (body.hasOwnProperty('status')) {
              if (!ALLOWED_STATUSES.includes(body.status)) {
                 return NextResponse.json({ message: `Invalid status. Allowed statuses: ${ALLOWED_STATUSES.join(', ')}` }, { status: 400 });
             }
-            updateFields.status = body.status;
+            userUpdateFields.status = body.status;
+            hasUserUpdates = true;
         }
 
-        if (Object.keys(updateFields).length === 0) {
-             return NextResponse.json({ message: "No valid fields (role, status) provided for update." }, { status: 400 });
+        // Validate and prepare Profile updates (only 'sex' in PATCH)
+        if (body.hasOwnProperty('sex')) {
+            if (!ALLOWED_SEX_VALUES.includes(body.sex)) {
+                return NextResponse.json({ message: `Invalid sex value. Allowed: ${ALLOWED_SEX_VALUES.join(', ')}` }, { status: 400 });
+            }
+            profileUpdateFields.sex = body.sex;
+            hasProfileUpdates = true;
         }
 
-        // 4. Perform Update on User model
-        const updatedUser = await User.findByIdAndUpdate(
-            id,
-            { $set: updateFields },
-            { new: true, runValidators: true } // Return updated doc, run schema validators
-        ).select('-password').lean(); // Exclude password from result
-
-        if (!updatedUser) {
-            return NextResponse.json({ message: "User not found" }, { status: 404 });
+        // Check if any valid fields were provided
+        if (!hasUserUpdates && !hasProfileUpdates) {
+             return NextResponse.json({ message: "No valid fields (role, status, sex) provided for update." }, { status: 400 });
         }
 
-        console.log(`[API PATCH /users/:id] Admin ${token.email} updated details for user ${id}:`, updateFields);
+        // 4. Perform Updates
+        let updatedUser: IUser | null = null;
+        let updatedProfile: IUserProfile | null = null;
 
-        // 5. Return Success Response
-        return NextResponse.json({ message: "User details updated successfully!", user: updatedUser }, { status: 200 });
+        // --- Update User if needed ---
+        if (hasUserUpdates) {
+            updatedUser = await User.findByIdAndUpdate(
+                id,
+                { $set: userUpdateFields },
+                { new: true, runValidators: true }
+            ).select('-password').lean(); // Exclude password
+
+            if (!updatedUser) {
+                // If user update fails, no point proceeding
+                return NextResponse.json({ message: "User not found for update." }, { status: 404 });
+            }
+            console.log(`[API PATCH /users/:id] Admin ${token.email} updated User details for user ${id}:`, userUpdateFields);
+        }
+
+        // --- Update UserProfile if needed ---
+        if (hasProfileUpdates) {
+            updatedProfile = await UserProfile.findOneAndUpdate(
+                { user: id }, // Find profile by user ID
+                { $set: profileUpdateFields },
+                { new: true, runValidators: true }
+            ).lean();
+
+            if (!updatedProfile) {
+                // Log a warning but don't necessarily fail if profile wasn't found but user was updated
+                console.warn(`[API PATCH /users/:id] User profile not found for user ${id} during sex update.`);
+                // Optionally return an error if profile MUST exist:
+                // return NextResponse.json({ message: "User profile not found for update." }, { status: 404 });
+            } else {
+                 console.log(`[API PATCH /users/:id] Admin ${token.email} updated UserProfile details for user ${id}:`, profileUpdateFields);
+            }
+        }
+
+        // 5. Fetch the final state of the user with populated profile to return
+        const finalUserData = await User.findById(id)
+            .select("-password")
+            .populate<{ profile: IUserProfile }>({ path: "profile", model: UserProfile, select: 'firstName lastName sex' })
+            .lean();
+
+        if (!finalUserData) {
+             // Should not happen if user update succeeded, but good safety check
+             return NextResponse.json({ message: "Failed to retrieve updated user data." }, { status: 500 });
+        }
+
+        // 6. Return Success Response
+        return NextResponse.json({ message: "User details updated successfully!", user: finalUserData }, { status: 200 });
 
     } catch (error: any) {
         console.error("[API PATCH /users/:id] Error updating user details:", error);
          if (error instanceof mongoose.Error.ValidationError) {
+            // Distinguish between User and UserProfile validation errors if needed
             return NextResponse.json({ message: "Validation failed", errors: error.errors }, { status: 400 });
         }
         if (error instanceof SyntaxError) {
@@ -221,52 +268,40 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         return NextResponse.json({ message: "Server error while updating user details", error: error.message }, { status: 500 });
     }
 }
-// <<< END OF ADDED HANDLER >>>
 
 
 // --- DELETE user by ID (Admin only) ---
-// (Keep your existing DELETE handler)
+// This handler remains unchanged
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   await connectDB();
 
-  // Use getToken for consistency
   const token = await getToken({ req, secret: process.env.SESSION_SECRET });
   if (!token || token.role !== 'admin') {
     return NextResponse.json({ message: 'Unauthorized: Admin role required' }, { status: 403 });
   }
 
-  // Optional: Consider Mongoose Transactions
-  // const session = await mongoose.startSession();
-  // session.startTransaction();
-
   try {
     const { id } = params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-        // if (session) await session.abortTransaction().finally(() => session.endSession());
         return NextResponse.json({ message: "Invalid user ID format" }, { status: 400 });
     }
 
     // Delete user profile first
-    await UserProfile.findOneAndDelete({ user: id } /*, { session }*/);
+    await UserProfile.findOneAndDelete({ user: id });
 
     // Delete user account
-    const deletedUser = await User.findByIdAndDelete(id /*, { session }*/);
+    const deletedUser = await User.findByIdAndDelete(id);
 
     if (!deletedUser) {
-        // if (session) await session.abortTransaction().finally(() => session.endSession());
         return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    // await session.commitTransaction();
     console.log(`[API DELETE /users/:id] Admin ${token.email} deleted user ${id}`);
     return NextResponse.json({ message: "User deleted successfully!" }, { status: 200 });
 
   } catch (error: any) {
     console.error("[API DELETE /users/:id] Error deleting user:", error);
-    // if (session) await session.abortTransaction();
     return NextResponse.json({ message: "Server error while deleting user", error: error.message }, { status: 500 });
-  } finally {
-    // if (session) session.endSession();
   }
 }
