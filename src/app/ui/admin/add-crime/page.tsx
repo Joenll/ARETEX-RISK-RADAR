@@ -1,4 +1,3 @@
-// src/app/ui/admin/add-crime/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -190,8 +189,8 @@ export default function CrimeReportForm() {
           event_proximity: "", crime_occurred_indoors_or_outdoors: "", house_building_number: "",
           street_name: "", purok_block_lot: "", zip_code: "", day_of_week: "",
         });
-        // Optionally redirect after a delay
-        // setTimeout(() => router.push('/some-success-page'), 2000);
+
+
       } else {
         throw new Error(result.message || result.error || "Failed to submit crime report.");
       }
@@ -204,17 +203,16 @@ export default function CrimeReportForm() {
   };
 
   return (
-    // Apply container styling
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-3xl mx-auto">
        {/* Back Button */}
        <button
-            onClick={() => router.back()} // Assuming you want a back button
+            onClick={() => router.back()}
             className="mb-4 text-sm text-blue-600 hover:text-blue-800 flex items-center"
         >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back {/* Adjust text as needed */}
+            Back
         </button>
 
       {/* Title */}
@@ -260,7 +258,6 @@ export default function CrimeReportForm() {
                         <option value="Ongoing">Ongoing</option>
                         <option value="Resolved">Resolved</option>
                         <option value="Pending">Pending</option>
-                        {/* Add more statuses if needed */}
                     </select>
                 </div>
                 <div>
@@ -283,7 +280,6 @@ export default function CrimeReportForm() {
             <legend className="text-lg font-semibold px-2 text-gray-700">Location Details</legend>
             <div className="space-y-4 pt-2"> {/* Use space-y for vertical spacing */}
                 {/* Location Dropdowns */}
-                {/* Apply consistent styling within LocationDropdown component if possible */}
                 <LocationDropdown
                     onSelect={handleLocationSelect}
                     selectedRegionFromParent={formData.region}

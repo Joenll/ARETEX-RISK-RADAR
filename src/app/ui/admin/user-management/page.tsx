@@ -1,20 +1,14 @@
-// src/app/ui/admin/user-management/page.tsx
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { IUser } from '@/models/User';
-// Import UserSex type along with IUserProfile
 import { IUserProfile, UserSex } from '@/models/UserProfile';
-// Assuming Button component exists and works as expected
-// import Button from '@/app/components/Button'; // Keep if using your custom Button
-// Use FaPlus for the Add button to match the design's intent
 import { FaEdit, FaTrash, FaShareSquare, FaSearch, FaCheck, FaTimes, FaPlus } from 'react-icons/fa';
 
 // Define a combined type for the user data we expect from the API
 interface UserWithProfile extends Omit<IUser, 'profile' | 'password'> {
     _id: string;
-    // Add 'sex' to the Pick from IUserProfile
     profile: Pick<IUserProfile, 'firstName' | 'lastName' | 'employeeNumber' | 'workPosition' | 'team' | 'sex'> | null;
     status: 'pending' | 'approved' | 'rejected';
     role: 'admin' | 'user'; // Match the expected role types
@@ -172,7 +166,6 @@ export default function UserManagementPage() {
                 throw new Error(`Failed to approve user: ${response.statusText} - ${errorData.message || errorData.error}`);
             }
             await fetchUsers(); // Refetch all users to update the list
-            // Optionally remove just the approved user from selection if needed
             setSelectedUserIds(prev => {
                 const next = new Set(prev);
                 next.delete(userId);
@@ -283,7 +276,7 @@ export default function UserManagementPage() {
         }
     };
 
-    // --- *** UPDATED EXPORT HANDLERS *** ---
+    // --- *** EXPORT HANDLERS *** ---
     const handleExport = (format: 'excel' | 'pdf') => {
         setIsExporting(true); // Indicate export is starting
         setError(null); // Clear previous errors

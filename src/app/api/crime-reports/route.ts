@@ -4,23 +4,24 @@ import CrimeReport from "@/models/CrimeReports";
 import Location from "@/models/location";
 import CrimeType from "@/models/CrimeType";
 import { requireRole } from "@/middleware/authMiddleware";
-import { fetchCoordinates } from "@/app/utils/geocoder"; // Import fetchCoordinates
+import { fetchCoordinates } from "@/app/utils/geocoder"; 
 import { isPSGCCode } from "@/app/utils/ispsgc";
 import { getPSGCName } from "@/app/utils/psgcName";
-import mongoose from "mongoose"; // Import mongoose
+import mongoose from "mongoose";
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 
 // GET: Fetch Crime Reports with all filters and searches
-export async function GET(req: Request) {
+export async function GET(req: Request) { // Changed req type back to Request for URL parsing
   await connectDB();
 
+  // Use NextRequest for middleware check if needed, but URL parsing works with Request
   const roleCheck = await requireRole(new NextRequest(req), ["admin"]);
   if (roleCheck) return roleCheck;
 
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(req.url); // Use standard URL parsing
     const limit = parseInt(searchParams.get("limit") || "12");
     const skip = parseInt(searchParams.get("skip") || "0");
     // Filters
@@ -29,29 +30,46 @@ export async function GET(req: Request) {
     const endDate = searchParams.get("end_date");
     // Search terms
     const searchCrimeType = searchParams.get("search_crime_type");
-    const searchLocation = searchParams.get("search_location"); // Get location search term
+    const searchLocation = searchParams.get("search_location");
+    const searchCrimeId = searchParams.get("search_crime_id"); // <-- Get Crime ID search term
 
     const query: any = {}; // Main query object for CrimeReport
+
+    // --- Start: Crime ID Search Logic
+    if (searchCrimeId) {
+      console.log("Searching for crime ID matching:", searchCrimeId);
+      // Since crime_id is a String, use regex for partial, case-insensitive matching.
+      // For an exact match, use: query.crime_id = searchCrimeId;
+      query.crime_id = { $regex: new RegExp(searchCrimeId, "i") };
+    }
+    // --- End: Crime ID Search Logic ---
 
     // --- Start: Crime Type Search Logic ---
     if (searchCrimeType) {
       console.log("Searching for crime types matching:", searchCrimeType);
       const matchingCrimeTypes = await CrimeType.find({
-        crime_type: { $regex: new RegExp(searchCrimeType, "i") }
-      }).select('_id');
+        // Also search crime_type_category
+        $or: [
+            { crime_type: { $regex: new RegExp(searchCrimeType, "i") } },
+            { crime_type_category: { $regex: new RegExp(searchCrimeType, "i") } }
+        ]
+      }).select('_id').lean(); // Use lean for performance
 
       const crimeTypeIds = matchingCrimeTypes.map(ct => ct._id);
       console.log("Found matching crime type IDs:", crimeTypeIds);
 
+      // If search term provided but no matching types found, make the query impossible
       if (crimeTypeIds.length === 0) {
         console.log("No matching crime types found.");
-        return NextResponse.json({ data: [], total: 0 }, { status: 200 });
+        // Setting crime_type to an impossible value ensures no results
+        query.crime_type = new mongoose.Types.ObjectId();
+      } else {
+        query.crime_type = { $in: crimeTypeIds };
       }
-      query.crime_type = { $in: crimeTypeIds };
     }
     // --- End: Crime Type Search Logic ---
 
-    // --- Start: Location Search Logic --- (NEW)
+    // --- Start: Location Search Logic ---
     if (searchLocation) {
       console.log("Searching for locations matching:", searchLocation);
       const searchRegex = new RegExp(searchLocation, "i"); // Case-insensitive regex
@@ -64,23 +82,24 @@ export async function GET(req: Request) {
         { region: searchRegex },
         { street_name: searchRegex },
         { purok_block_lot: searchRegex },
-        // Add other relevant string fields from your Location model if needed
+        { house_building_number: searchRegex }, // Added house number
+        { zip_code: searchRegex }, // Added zip code
       ];
 
       const matchingLocations = await Location.find({
         $or: locationSearchFields // Search across multiple fields
-      }).select('_id'); // Only get the IDs
+      }).select('_id').lean(); // Use lean
 
       const locationIds = matchingLocations.map(loc => loc._id);
       console.log("Found matching location IDs:", locationIds);
 
-      // If search term provided but no matching locations found, return empty
+      // If search term provided but no matching locations found, make query impossible
       if (locationIds.length === 0) {
         console.log("No matching locations found for search term.");
-        return NextResponse.json({ data: [], total: 0 }, { status: 200 });
+        query.location = new mongoose.Types.ObjectId();
+      } else {
+        query.location = { $in: locationIds };
       }
-      // Add the $in condition to the main query
-      query.location = { $in: locationIds };
     }
     // --- End: Location Search Logic ---
 
@@ -89,6 +108,7 @@ export async function GET(req: Request) {
       query.case_status = caseStatus;
     }
 
+    // Date range filter (improved validation)
     if (startDate || endDate) {
       query.date = {};
       if (startDate) {
@@ -97,6 +117,7 @@ export async function GET(req: Request) {
             query.date.$gte = parsedStartDate;
         } else {
             console.warn("Invalid start_date received:", startDate);
+            // Optionally return an error or ignore the invalid date
         }
       }
       if (endDate) {
@@ -106,7 +127,12 @@ export async function GET(req: Request) {
             query.date.$lte = parsedEndDate;
          } else {
             console.warn("Invalid end_date received:", endDate);
+            // Optionally return an error or ignore the invalid date
          }
+      }
+      // Remove date filter if it ended up empty due to invalid inputs
+      if (Object.keys(query.date).length === 0) {
+          delete query.date;
       }
     }
     // --- End: Standard Filters ---
@@ -118,11 +144,12 @@ export async function GET(req: Request) {
 
     // Get the paginated crime reports matching the combined query
     const crimeReports = await CrimeReport.find(query)
-      .populate("location")
-      .populate("crime_type")
-      .sort({ date: -1, time: -1 }) // Optional sort
+      .populate({ path: "location", model: Location }) // Explicitly specify model for population
+      .populate({ path: "crime_type", model: CrimeType }) // Explicitly specify model for population
+      .sort({ date: -1, time: -1 }) // Sort by date then time, descending
       .limit(limit)
       .skip(skip)
+      .lean() // Use lean() for better performance when not modifying docs
       .exec();
 
     console.log(`Found ${crimeReports.length} reports for this page, total matching: ${total}`);
@@ -130,10 +157,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ data: crimeReports, total }, { status: 200 });
   } catch (error) {
     console.error("Error Fetching Crime Reports:", error);
-    if (error instanceof Error) {
-      console.error("Error stack:", error.stack);
-    }
-    return NextResponse.json({ error: "Database Error" }, { status: 500 });
+    // Provide more context in the error response if possible
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    return NextResponse.json({ error: "Database Error", details: errorMessage }, { status: 500 });
   }
 }
 
@@ -249,7 +275,7 @@ export async function POST(req: Request) {
     }
   }
 
-    // 2. Find or Create Crime Type (Keep existing logic)
+    // 2. Find or Create Crime Type 
     let crimeType = await CrimeType.findOne({ crime_type: body.crime_type });
     if (!crimeType) {
         crimeType = await CrimeType.create({
@@ -259,7 +285,7 @@ export async function POST(req: Request) {
     }
     const crimeTypeId = crimeType._id;
 
-    // Prepare location data (Keep existing logic)
+    // Prepare location data 
     const locationData: any = {
       house_building_number: body.house_building_number,
       street_name: body.street_name,

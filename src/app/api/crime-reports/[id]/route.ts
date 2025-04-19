@@ -26,24 +26,24 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     console.log(`Fetching report with ID: ${id}`);
 
     // Find the crime report and populate references
-    // REMOVED .lean() here
+  
     const crimeReport = await CrimeReport.findById(id)
       .populate("location") // Populates the location field with the Location document
       .populate("crime_type"); // Populates the crime_type field with the CrimeType document
-      // .lean(); // <-- REMOVED
+
 
     if (!crimeReport) {
       return NextResponse.json({ error: "Crime Report not found" }, { status: 404 });
     }
 
-    // --- Adjust Response Structure ---
+  
     // Use .toObject() to convert the Mongoose document to a plain object
     const reportObject = crimeReport.toObject();
 
     const responseData = {
         ...reportObject, // Spread the plain object
         crime_type_data: reportObject.crime_type, // Access populated data
-        // crime_type: undefined // No longer strictly necessary if spreading reportObject, but explicit removal is fine
+
     };
     // Ensure the original ObjectId reference isn't sent if you only want the populated data under crime_type_data
     delete responseData.crime_type;
@@ -67,10 +67,10 @@ export async function PUT(
   await connectDB();
 
   // --- FIX: Clone the request before passing it to middleware ---
-  // This ensures the original request's body stream remains available
+
   const reqCloneForAuth = req.clone();
   const roleCheck = await requireRole(new NextRequest(reqCloneForAuth), ["admin"]);
-  // --- End FIX ---
+
 
   if (roleCheck) return roleCheck;
 
@@ -78,10 +78,10 @@ export async function PUT(
     const crimeReportId = params.id;
 
     // Now, read the body from the *original* request object.
-    // This should work because only the clone's stream might have been touched.
+
     const body = await req.json();
 
-    // --- Rest of your PUT handler logic remains the same ---
+    // ---  PUT handler logic ---
 
     if (!crimeReportId || !mongoose.Types.ObjectId.isValid(crimeReportId)) {
         console.error(`Invalid Crime Report ID for update: ${crimeReportId}`);
@@ -186,7 +186,6 @@ export async function PUT(
         // Return a more specific error message if desired
         return NextResponse.json({ error: "Internal server error processing request body." }, { status: 500 });
     }
-    // ... (rest of your existing error handling) ...
      if (error instanceof mongoose.Error.CastError) {
         return NextResponse.json({ error: `Invalid ID format provided.` }, { status: 400 });
      }
@@ -205,7 +204,7 @@ export async function PUT(
 }
 
 
- // --- DELETE Handler --- (Looks okay, added ID validation)
+ // --- DELETE Handler --- 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
     await connectDB(); // Connect DB for DELETE
 

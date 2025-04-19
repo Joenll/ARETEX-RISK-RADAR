@@ -29,7 +29,7 @@ const CrimeReportGrid: React.FC<CrimeReportGridProps> = ({
         >
           <div className="flex justify-between items-start mb-3">
             <h2 className="text-lg font-bold text-gray-800 break-words">
-              ID: {report.crime_id}
+              Crime ID: {report.crime_id}
             </h2>
           </div>
           <div className="text-sm text-gray-600 space-y-1 flex-grow mb-3">

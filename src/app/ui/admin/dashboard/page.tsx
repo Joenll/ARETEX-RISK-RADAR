@@ -1,4 +1,3 @@
-// src/app/ui/admin/dashboard/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -193,7 +192,7 @@ export default function AdminDashBoardPage() {
   }, []);
 
 
-  // --- JSX Return ---
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-4">Admin Dashboard</h1>
@@ -283,7 +282,6 @@ export default function AdminDashBoardPage() {
 
       </div>
 
-      {/* Removed the separate Quick Links section from below */}
 
     </div>
   );

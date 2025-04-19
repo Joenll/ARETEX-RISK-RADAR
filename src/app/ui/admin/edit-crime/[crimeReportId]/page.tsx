@@ -1,4 +1,3 @@
-// src/app/ui/admin/edit-crime/[crimeReportId]/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react"; // Removed 'use' import
@@ -301,7 +300,6 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
   return (
     // Apply container styling
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-3xl mx-auto">
-      {/* Back Button */}
        <button
             onClick={() => router.back()}
             className="mb-4 text-sm text-blue-600 hover:text-blue-800 flex items-center"

@@ -29,7 +29,7 @@ const CrimeReportListView: React.FC<CrimeReportListViewProps> = ({
       {/* Table Header */}
       <div className="bg-gray-100 border-b border-gray-200 hidden md:block">
         <div className="flex items-center py-2 px-4 font-medium text-gray-600 text-sm">
-          <div className="w-20 flex-shrink-0">ID</div>
+          <div className="w-20 flex-shrink-0">Crime ID</div>
           <div className="w-48 flex-shrink-0">Type</div>
           <div className="w-32 flex-shrink-0">Date</div>
           <div className="w-24 flex-shrink-0">Time</div>

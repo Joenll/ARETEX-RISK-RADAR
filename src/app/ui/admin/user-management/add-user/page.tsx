@@ -1,16 +1,13 @@
-// src/app/ui/admin/user-management/add-user/page.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Button from '@/app/components/Button'; // Import your Button component
-// --- Import UserSex type ---
-import { UserSex } from '@/models/UserProfile'; // Adjust path if needed
+import Button from '@/app/components/Button';
+import { UserSex } from '@/models/UserProfile';
 
 // --- Define possible sex values for the dropdown ---
 const sexOptions: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
 
-// --- Define consistent input/select styling ---
 const inputFieldStyles = "block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm";
 const labelStyles = "block text-gray-700 text-sm font-bold mb-1";
 
@@ -78,8 +75,6 @@ export default function AddUserPage() {
       }
 
       setSuccess('User created successfully! Redirecting...');
-      // Clear form (optional)
-      // setFormData({ email: '', password: '', confirmPassword: '', firstName: '', lastName: '', sex: '', ... });
       setTimeout(() => {
         router.push('/ui/admin/user-management'); // Redirect back to the list
       }, 2000);

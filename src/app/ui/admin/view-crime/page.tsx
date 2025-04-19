@@ -15,12 +15,14 @@ import {
   FaChevronDown,
   FaTimes,
   FaPlus,
+  FaShareSquare,
+  FaFileImport,
 } from "react-icons/fa";
 import Button from "@/app/components/Button";
 import CrimeReportGrid from "@/app/components/ReportGridView";
 import CrimeReportListView from "@/app/components/ReportListView";
 
-// Debounce function... (keep as is)
+// Debounce function...
 function debounce<T extends (...args: any[]) => void>(
     func: T,
     delay: number
@@ -36,7 +38,7 @@ function debounce<T extends (...args: any[]) => void>(
     };
   }
 
-// formatDate function... (keep as is)
+// formatDate function...
 const formatDate = (dateString: string | Date): string => {
     try {
       if (!dateString) return "N/A";
@@ -48,7 +50,7 @@ const formatDate = (dateString: string | Date): string => {
     }
   };
 
-// CrimeReport interface... (keep as is)
+// CrimeReport interface...
 export interface CrimeReport {
     _id: string;
     crime_id: string;
@@ -93,11 +95,19 @@ export default function CrimeReportList() {
   const [debouncedCrimeTypeSearchTerm, setDebouncedCrimeTypeSearchTerm] = useState("");
   const [searchLocation, setSearchLocation] = useState("");
   const [debouncedLocationSearchTerm, setDebouncedLocationSearchTerm] = useState("");
+  // --- NEW: Crime ID Search State ---
+  const [searchCrimeId, setSearchCrimeId] = useState("");
+  const [debouncedCrimeIdSearchTerm, setDebouncedCrimeIdSearchTerm] = useState("");
+  // --- END NEW ---
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentReport, setCurrentReport] = useState<CrimeReport | null>(null);
+  // --- Export State ---
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // --- Fetch Logic ---
   const fetchCrimeReports = useCallback(async () => {
@@ -111,12 +121,18 @@ export default function CrimeReportList() {
       if (filterStartDate) url += `&start_date=${filterStartDate.toISOString().split('T')[0]}`;
       if (filterEndDate) url += `&end_date=${filterEndDate.toISOString().split('T')[0]}`;
 
+      // Use debounced terms for fetching data
       if (debouncedCrimeTypeSearchTerm) {
         url += `&search_crime_type=${encodeURIComponent(debouncedCrimeTypeSearchTerm)}`;
       }
       if (debouncedLocationSearchTerm) {
         url += `&search_location=${encodeURIComponent(debouncedLocationSearchTerm)}`;
       }
+      // --- NEW: Add Crime ID Search Term ---
+      if (debouncedCrimeIdSearchTerm) {
+        url += `&search_crime_id=${encodeURIComponent(debouncedCrimeIdSearchTerm)}`;
+      }
+      // --- END NEW ---
 
       const response = await fetch(url);
       if (!response.ok) {
@@ -139,7 +155,8 @@ export default function CrimeReportList() {
     }
   }, [
       currentPage, reportsPerPage, filterCaseStatus, filterStartDate, filterEndDate,
-      debouncedCrimeTypeSearchTerm, debouncedLocationSearchTerm
+      debouncedCrimeTypeSearchTerm, debouncedLocationSearchTerm,
+      debouncedCrimeIdSearchTerm // <-- Add new dependency
   ]);
 
   useEffect(() => {
@@ -161,7 +178,16 @@ export default function CrimeReportList() {
     }, 500)
   ).current;
 
-  // --- Input Change Handlers... (keep as is) ---
+  // --- NEW: Debounced Handler for Crime ID ---
+  const debouncedUpdateCrimeIdSearch = useRef(
+    debounce((value: string) => {
+      setDebouncedCrimeIdSearchTerm(value);
+      setCurrentPage(1);
+    }, 500)
+  ).current;
+  // --- END NEW ---
+
+  // --- Input Change Handlers ---
   const handleCrimeTypeSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchCrimeType(value);
@@ -173,6 +199,14 @@ export default function CrimeReportList() {
     setSearchLocation(value);
     debouncedUpdateLocationSearch(value);
   };
+
+  // --- NEW: Handler for Crime ID Search ---
+  const handleCrimeIdSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchCrimeId(value);
+    debouncedUpdateCrimeIdSearch(value);
+  };
+  // --- END NEW ---
 
   // --- Filter/Page Handlers ---
   const handlePageChange = (page: number) => {
@@ -200,6 +234,10 @@ export default function CrimeReportList() {
     setDebouncedCrimeTypeSearchTerm("");
     setSearchLocation("");
     setDebouncedLocationSearchTerm("");
+    // --- NEW: Reset Crime ID Search ---
+    setSearchCrimeId("");
+    setDebouncedCrimeIdSearchTerm("");
+    // --- END NEW ---
     setCurrentPage(1);
   };
 
@@ -208,7 +246,7 @@ export default function CrimeReportList() {
     setExpandedRow(prev => (prev === index ? null : index));
   };
 
-  // --- Delete Handlers (Keep as is) ---
+  // --- Delete Handlers ---
   const handleDeleteClick = (report: CrimeReport) => {
     setCurrentReport(report);
     setIsDeleteModalOpen(true);
@@ -225,8 +263,7 @@ export default function CrimeReportList() {
       }
       alert("Crime report deleted successfully!");
       setCurrentReport(null);
-      setCrimeReports(prev => prev.filter(r => r._id !== currentReport._id));
-      setTotalReports(prev => prev -1);
+      fetchCrimeReports();
     } catch (err: any) {
        console.error("Delete Error:", err);
        setError(`Error deleting report: ${err.message}`);
@@ -235,10 +272,62 @@ export default function CrimeReportList() {
     }
   };
 
+  // --- Close Export Dropdown ---
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+        if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
+            setIsExportDropdownOpen(false);
+        }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [exportDropdownRef]);
+
+  // --- Export Handlers ---
+  const handleExport = (format: 'excel' | 'pdf') => {
+    setIsExporting(true);
+    setError(null);
+    console.log(`Exporting crime reports to ${format.toUpperCase()}...`);
+
+    const baseUrl = '/api/crime-reports/export';
+    const params = new URLSearchParams();
+
+    params.append('format', format);
+
+    // Add filter parameters
+    if (filterCaseStatus) params.append('case_status', filterCaseStatus);
+    if (filterStartDate) params.append('start_date', filterStartDate.toISOString().split('T')[0]);
+    if (filterEndDate) params.append('end_date', filterEndDate.toISOString().split('T')[0]);
+
+    // Use debounced search terms
+    if (debouncedCrimeTypeSearchTerm) params.append('search_crime_type', debouncedCrimeTypeSearchTerm);
+    if (debouncedLocationSearchTerm) params.append('search_location', debouncedLocationSearchTerm);
+    // --- NEW: Add Crime ID Search Term to Export ---
+    if (debouncedCrimeIdSearchTerm) params.append('search_crime_id', debouncedCrimeIdSearchTerm);
+    // --- END NEW ---
+
+    const exportUrl = `${baseUrl}?${params.toString()}`;
+    console.log("Export URL:", exportUrl);
+
+    window.location.href = exportUrl;
+    setIsExportDropdownOpen(false);
+
+    setTimeout(() => {
+        setIsExporting(false);
+    }, 3000);
+  };
+
+  const handleExportExcel = () => handleExport('excel');
+  const handleExportPDF = () => handleExport('pdf');
+  // --- END Export Handlers ---
+
+
   // --- UI Rendering ---
   const totalPages = Math.ceil(totalReports / reportsPerPage);
 
-  // formatLocationString function... (keep as is)
+  // formatLocationString function...
   const formatLocationString = (location: CrimeReport['location']): string => {
     return [
         location.house_building_number, location.street_name, location.purok_block_lot,
@@ -246,7 +335,7 @@ export default function CrimeReportList() {
     ].filter(Boolean).join(", ");
   }
 
-  // Error display... (keep as is)
+  // Error display...
   if (error && !isDeleteModalOpen) {
     return (
         <div className="bg-gray-50 p-8 font-sans min-h-screen">
@@ -265,30 +354,48 @@ export default function CrimeReportList() {
 
   return (
     <div className="bg-gray-50 p-8 font-sans min-h-screen">
-      {/* Header... (keep as is) */}
+      {/* Header */}
       <header className="flex flex-wrap justify-between items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Crime Reports</h1>
           <p className="text-sm text-gray-500">Track crime incident records</p>
         </div>
-        <Link href="/ui/admin/add-crime">
-            <Button variant="primary" className="flex items-center">
-                <FaPlus className="mr-2" /> Insert Crime Data
-            </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+            <Link href="/ui/admin/add-crime">
+                <Button variant="primary" className="flex items-center">
+                    <FaPlus className="mr-2" /> Insert Crime Data
+                </Button>
+            </Link>
+            <Link href="/ui/admin/import-crime">
+                <Button variant="secondary" className="flex items-center">
+                    <FaFileImport className="mr-2" /> Import Reports
+                </Button>
+            </Link>
+        </div>
       </header>
 
-      {/* Toolbar - Removed justify-between from parent */}
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center mb-4 gap-3">
         {/* Filters and Search Section */}
         <div className="flex items-center space-x-2 flex-wrap gap-3">
-          {/* Search Inputs */}
+          {/* --- NEW: Crime ID Search Input --- */}
+          <input
+            type="text"
+            placeholder="Search Crime ID"
+            value={searchCrimeId}
+            onChange={handleCrimeIdSearchChange}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-800"
+            disabled={isLoading}
+          />
+          {/* --- END NEW --- */}
+          {/* Other Search Inputs */}
           <input
             type="text"
             placeholder="Search Crime Types"
             value={searchCrimeType}
             onChange={handleCrimeTypeSearchChange}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-800"
+            disabled={isLoading}
           />
           <input
             type="text"
@@ -296,12 +403,14 @@ export default function CrimeReportList() {
             value={searchLocation}
             onChange={handleLocationSearchChange}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-800"
+            disabled={isLoading}
           />
           {/* Case Status Filter */}
           <select
             value={filterCaseStatus}
             onChange={handleCaseStatusChange}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+            disabled={isLoading}
           >
              <option value="">All Statuses</option>
             <option value="Ongoing">Ongoing</option>
@@ -316,6 +425,7 @@ export default function CrimeReportList() {
                 placeholderText="Start Date"
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-gray-900 placeholder:text-gray-800"
                 isClearable
+                disabled={isLoading}
               />
           </div>
           <div className="react-datepicker-wrapper">
@@ -325,12 +435,57 @@ export default function CrimeReportList() {
                 placeholderText="End Date"
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-gray-900 placeholder:text-gray-800"
                 isClearable
+                disabled={isLoading}
               />
           </div>
           {/* Clear Button */}
-          <Button variant="secondary" onClick={handleClearFilters}>Clear Filters</Button>
+          <Button variant="secondary" onClick={handleClearFilters} disabled={isLoading}>Clear Filters</Button>
 
-          {/* View Mode Dropdown - MOVED HERE */}
+          {/* Export Button & Dropdown */}
+          <div className="relative" ref={exportDropdownRef}>
+            <button
+                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                className={`flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg shadow-md hover:bg-blue-200 ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isExporting || isLoading}
+            >
+                {isExporting ? (
+                    <>
+                        <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-blue-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Exporting...
+                    </>
+                ) : (
+                    <>
+                        <FaShareSquare className="mr-2" />
+                        Export
+                    </>
+                )}
+            </button>
+            {isExportDropdownOpen && (
+                <div className="absolute right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-10">
+                    <ul className="py-2">
+                        <li
+                            className="flex items-center px-4 py-2 cursor-pointer hover:bg-gray-100 text-gray-700 hover:text-orange-500 transition-colors"
+                            onClick={handleExportExcel}
+                        >
+                            <img src="/excel.png" alt="Excel" className="w-5 h-5 mr-2" />
+                            Export to Excel
+                        </li>
+                        <li
+                            className="flex items-center px-4 py-2 cursor-pointer hover:bg-gray-100 text-gray-700 hover:text-orange-500 transition-colors"
+                            onClick={handleExportPDF}
+                        >
+                            <img src="/pdf.png" alt="PDF" className="w-5 h-5 mr-2" />
+                            Export to PDF
+                        </li>
+                    </ul>
+                </div>
+            )}
+          </div>
+
+          {/* View Mode Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsViewDropdownOpen((prev) => !prev)}
@@ -339,6 +494,7 @@ export default function CrimeReportList() {
                   ? "bg-blue-600 text-white"
                   : "bg-gray-200 text-gray-800 hover:bg-blue-600 hover:text-white"
               }`}
+              disabled={isLoading}
             >
               View
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -364,20 +520,18 @@ export default function CrimeReportList() {
               </div>
             )}
           </div>
-          {/* End View Mode Dropdown */}
 
         </div>
-        {/* Removed the separate div for View Mode Dropdown */}
       </div>
 
-      {/* Loading Indicator... (keep as is) */}
+      {/* Loading Indicator... */}
       {isLoading && (
          <div className="flex justify-center items-center py-10">
             <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
          </div>
       )}
 
-      {/* No Results Message... (keep as is) */}
+      {/* No Results Message... */}
       {!isLoading && crimeReports.length === 0 && (
          <div className="text-center text-gray-500 mt-8 p-6 bg-white rounded-lg shadow">
              No crime reports found matching your criteria.
@@ -407,7 +561,7 @@ export default function CrimeReportList() {
         </>
       )}
 
-      {/* Pagination... (keep as is) */}
+      {/* Pagination... */}
       {!isLoading && totalPages > 1 && (
          <div className="flex flex-wrap justify-center items-center mt-8 space-x-1 space-y-1">
           <Button
@@ -439,7 +593,7 @@ export default function CrimeReportList() {
         </div>
        )}
 
-      {/* Delete Confirmation Modal... (keep as is) */}
+      {/* Delete Confirmation Modal... */}
       {isDeleteModalOpen && currentReport && (
          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-md p-6 shadow-xl">
