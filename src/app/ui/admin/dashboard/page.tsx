@@ -1,11 +1,13 @@
+// src/app/ui/admin/dashboard/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaUsers, FaFileAlt, FaUserPlus, FaUserTimes, FaUserClock, FaUserCheck, FaPlusSquare } from 'react-icons/fa';
 
-// --- Import the new PieChart component ---
+// --- Import the PieChart and CrimeMap components ---
 import PieChart from '@/app/components/PieChart'; // Adjust path if needed
+import CrimeMap from '@/app/components/CrimeMap'; // Adjust path if needed
 
 // Define types
 interface UserProfileInfo {
@@ -19,7 +21,7 @@ interface UserListItem {
   createdAt: string;
 }
 
-// --- Helper component for count cards ---
+// --- Helper component for count cards (remains the same) ---
 const CountCard = ({ title, count, isLoading, error, icon: Icon, colorClass }: {
     title: string;
     count: number | null;
@@ -44,7 +46,7 @@ const CountCard = ({ title, count, isLoading, error, icon: Icon, colorClass }: {
     </div>
 );
 
-// --- Helper component for user list items ---
+// --- Helper component for user list items (remains the same) ---
 const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Icon, iconColor }: {
     title: string;
     users: UserListItem[];
@@ -97,7 +99,7 @@ const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Ic
     </div>
 );
 
-// --- Helper to format date ---
+// --- Helper to format date (remains the same) ---
 const formatDate = (dateString: string) => {
   try {
     return new Date(dateString).toLocaleDateString(undefined, {
@@ -110,7 +112,7 @@ const formatDate = (dateString: string) => {
 
 
 export default function AdminDashBoardPage() {
-  // --- State variables (remain the same) ---
+  // --- State variables for existing data (remain the same) ---
   const [totalUserCount, setTotalUserCount] = useState<number | null>(null);
   const [reportCount, setReportCount] = useState<number | null>(null);
   const [approvedUserCount, setApprovedUserCount] = useState<number | null>(null);
@@ -124,6 +126,17 @@ export default function AdminDashBoardPage() {
   const [rejectedUsers, setRejectedUsers] = useState<UserListItem[]>([]);
   const [isLoadingRejected, setIsLoadingRejected] = useState(true);
   const [errorRejected, setErrorRejected] = useState<string | null>(null);
+
+  // --- State for managing the active map ---
+  type MapType = 'heatmap' | 'hotspot' | 'status';
+  const [activeMap, setActiveMap] = useState<MapType>('heatmap');
+
+  // --- Map Endpoints ---
+  const mapEndpoints: Record<MapType, string> = {
+    heatmap: '/api/heatmap',
+    hotspot: '/api/hotspot-map',
+    status: '/api/status-map',
+  };
 
   // --- useEffect for fetching data (Remains the same) ---
   useEffect(() => {
@@ -220,7 +233,6 @@ export default function AdminDashBoardPage() {
       </div>
 
       {/* --- Section: User Lists, Chart & Quick Links --- */}
-      {/* Changed grid layout to 4 columns on large screens */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
         {/* Column 1: Recent Pending Users */}
@@ -256,11 +268,10 @@ export default function AdminDashBoardPage() {
             error={errorCounts ? 'Error loading chart data' : null}
         />
 
-        {/* Column 4: Quick Links (Moved here) */}
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full"> {/* Added h-full */}
+        {/* Column 4: Quick Links */}
+        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full">
             <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Links</h2>
             <div className="space-y-3">
-               {/* Quick Links */}
                <Link href="/ui/admin/user-management" className="flex items-center p-5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors">
                   <FaUsers className="mr-3 text-blue-500" />
                   <span>Manage Users</span>
@@ -273,15 +284,48 @@ export default function AdminDashBoardPage() {
                   <FaUserPlus className="mr-3 text-green-500" />
                   <span>Add New User</span>
                </Link>
-               { <Link href="/ui/admin/add-crime" className="flex items-center p-5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors">
+               <Link href="/ui/admin/add-crime" className="flex items-center p-5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors">
                   <FaPlusSquare className="mr-3 text-purple-500" />
                   <span>Add New Crime Report</span>
-               </Link> }
+               </Link>
             </div>
          </div>
-
       </div>
 
+      {/* --- Section: Crime Map Visualizations --- */}
+      <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Crime Map Visualizations</h2>
+
+        {/* Map Tabs */}
+        <div className="border-b border-gray-200 mb-4">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            {(['heatmap', 'hotspot', 'status'] as MapType[]).map((mapType) => (
+              <button
+                key={mapType}
+                onClick={() => setActiveMap(mapType)}
+                className={`${
+                  activeMap === mapType
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm capitalize`}
+                aria-current={activeMap === mapType ? 'page' : undefined}
+              >
+                {mapType.replace('-', ' ')} Map
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Map Container - Adjust height as needed */}
+        <div className="w-full h-[500px] md:h-[600px] bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+          {/* The key prop helps React efficiently update when the endpoint changes */}
+          <CrimeMap
+            key={activeMap} // Important for re-fetching when tab changes
+            endpointPath={mapEndpoints[activeMap]}
+            className="w-full h-full" // Ensure map fills container
+          />
+        </div>
+      </div>
 
     </div>
   );
