@@ -1,15 +1,15 @@
 // src/app/ui/admin/dashboard/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { FaUsers, FaFileAlt, FaUserPlus, FaUserTimes, FaUserClock, FaUserCheck, FaPlusSquare } from 'react-icons/fa';
+import { FaUsers, FaFileAlt, FaUserPlus, FaUserTimes, FaUserClock, FaUserCheck, FaPlusSquare, FaFilter, FaChevronDown } from 'react-icons/fa';
 
 // --- Import the PieChart and CrimeMap components ---
 import PieChart from '@/app/components/PieChart'; // Adjust path if needed
 import CrimeMap from '@/app/components/CrimeMap'; // Adjust path if needed
 
-// Define types
+// Define types (remains the same)
 interface UserProfileInfo {
   firstName: string;
   lastName: string;
@@ -21,7 +21,7 @@ interface UserListItem {
   createdAt: string;
 }
 
-// --- Helper component for count cards (remains the same) ---
+// --- Helper components (CountCard, UserList, formatDate) remain the same ---
 const CountCard = ({ title, count, isLoading, error, icon: Icon, colorClass }: {
     title: string;
     count: number | null;
@@ -46,7 +46,6 @@ const CountCard = ({ title, count, isLoading, error, icon: Icon, colorClass }: {
     </div>
 );
 
-// --- Helper component for user list items (remains the same) ---
 const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Icon, iconColor }: {
     title: string;
     users: UserListItem[];
@@ -57,11 +56,11 @@ const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Ic
     icon: React.ElementType;
     iconColor: string;
 }) => (
-    <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full flex flex-col"> {/* Added h-full and flex */}
+    <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full flex flex-col">
         <h2 className={`text-lg font-semibold text-gray-700 mb-3 flex items-center ${iconColor}`}>
            <Icon className="mr-2" /> {title}
         </h2>
-        <div className="flex-grow"> {/* Added flex-grow to push link down */}
+        <div className="flex-grow">
             {isLoading && (
                 <div className="space-y-2">
                     {[...Array(3)].map((_, i) => (
@@ -81,16 +80,15 @@ const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Ic
                                 {user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.email}
                             </span>
                             <span className="text-gray-500 text-xs flex-shrink-0">
-                                {formatDate(user.createdAt)} {/* Ensure formatDate is defined */}
+                                {formatDate(user.createdAt)}
                             </span>
                         </li>
                     ))}
                 </ul>
             )}
         </div>
-        {/* Link to full management page */}
         {!isLoading && !error && (
-            <div className="pt-3 mt-auto"> {/* Added mt-auto to push link to bottom */}
+            <div className="pt-3 mt-auto">
                 <Link href={link} className="text-sm text-blue-600 hover:underline">
                     View all...
                 </Link>
@@ -99,7 +97,6 @@ const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Ic
     </div>
 );
 
-// --- Helper to format date (remains the same) ---
 const formatDate = (dateString: string) => {
   try {
     return new Date(dateString).toLocaleDateString(undefined, {
@@ -131,7 +128,11 @@ export default function AdminDashBoardPage() {
   type MapType = 'heatmap' | 'hotspot' | 'status';
   const [activeMap, setActiveMap] = useState<MapType>('heatmap');
 
-  // --- Map Endpoints ---
+  // --- State for map filter dropdown ---
+  const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
+  const mapFilterDropdownRef = useRef<HTMLDivElement>(null);
+
+  // --- Map Endpoints (remains the same) ---
   const mapEndpoints: Record<MapType, string> = {
     heatmap: '/api/heatmap',
     hotspot: '/api/hotspot-map',
@@ -204,15 +205,37 @@ export default function AdminDashBoardPage() {
     fetchData();
   }, []);
 
+  // --- Effect to close dropdown when clicking outside ---
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (mapFilterDropdownRef.current && !mapFilterDropdownRef.current.contains(event.target as Node)) {
+        setIsMapFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [mapFilterDropdownRef]);
+
+  // --- Handler for selecting a map from the dropdown ---
+  const handleMapSelect = (mapType: MapType) => {
+    setActiveMap(mapType);
+    setIsMapFilterOpen(false); // Close dropdown after selection
+  };
+
+  // --- Helper to format map type name for display ---
+  const formatMapName = (mapType: MapType) => {
+    return `${mapType.replace('-', ' ')} Map`;
+  };
 
 
   return (
     <div className="p-4 md:p-6 space-y-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-4">Admin Dashboard</h1>
 
-      {/* Section: Top Counts (Total Users & Reports) */}
+      {/* Section: Top Counts (remains the same) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Total User Count Card */}
         <CountCard
             title="Total Users"
             count={totalUserCount}
@@ -221,7 +244,6 @@ export default function AdminDashBoardPage() {
             icon={FaUsers}
             colorClass="text-blue-600"
         />
-        {/* Report Count Card */}
         <CountCard
             title="Total Reports"
             count={reportCount}
@@ -232,10 +254,8 @@ export default function AdminDashBoardPage() {
         />
       </div>
 
-      {/* --- Section: User Lists, Chart & Quick Links --- */}
+      {/* --- Section: User Lists, Chart & Quick Links (remains the same) --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        {/* Column 1: Recent Pending Users */}
         <UserList
             title="Recent Pending Users"
             users={pendingUsers}
@@ -246,8 +266,6 @@ export default function AdminDashBoardPage() {
             icon={FaUserClock}
             iconColor="text-yellow-600"
         />
-
-        {/* Column 2: Recent Rejected Users */}
         <UserList
             title="Recent Rejected Users"
             users={rejectedUsers}
@@ -258,8 +276,6 @@ export default function AdminDashBoardPage() {
             icon={FaUserTimes}
             iconColor="text-red-600"
         />
-
-        {/* Column 3: User Status Pie Chart */}
         <PieChart
             approvedCount={approvedUserCount}
             pendingCount={pendingUserCount}
@@ -267,8 +283,6 @@ export default function AdminDashBoardPage() {
             isLoading={isLoadingCounts}
             error={errorCounts ? 'Error loading chart data' : null}
         />
-
-        {/* Column 4: Quick Links */}
         <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full">
             <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Links</h2>
             <div className="space-y-3">
@@ -292,39 +306,61 @@ export default function AdminDashBoardPage() {
          </div>
       </div>
 
-      {/* --- Section: Crime Map Visualizations --- */}
+      {/* --- Section: Crime Map Visualizations (MODIFIED LAYOUT) --- */}
+      {/* Outer container remains the same */}
       <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Crime Map Visualizations</h2>
 
-        {/* Map Tabs */}
-        <div className="border-b border-gray-200 mb-4">
-          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-            {(['heatmap', 'hotspot', 'status'] as MapType[]).map((mapType) => (
-              <button
-                key={mapType}
-                onClick={() => setActiveMap(mapType)}
-                className={`${
-                  activeMap === mapType
-                    ? 'border-orange-500 text-orange-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm capitalize`}
-                aria-current={activeMap === mapType ? 'page' : undefined}
-              >
-                {mapType.replace('-', ' ')} Map
-              </button>
-            ))}
-          </nav>
+        {/* Map Filter Dropdown (Moved OUTSIDE and ABOVE the inner container) */}
+        <div className="relative mb-4 flex justify-start" ref={mapFilterDropdownRef}>
+            <button
+                onClick={() => setIsMapFilterOpen(!isMapFilterOpen)}
+                className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm ${
+                isMapFilterOpen
+                    ? "bg-blue-500 text-white" // Style when open
+                    : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white" // Style when closed
+                }`}
+            >
+                <FaFilter className="mr-2" /> {/* Filter Icon */}
+                {formatMapName(activeMap)} {/* Show selected map name */}
+                <FaChevronDown className={`ml-2 transition-transform duration-200 ${isMapFilterOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {/* Dropdown Menu */}
+            {isMapFilterOpen && (
+                <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20">
+                <ul className="py-1">
+                    {(['heatmap', 'hotspot', 'status'] as MapType[]).map((mapType) => (
+                    <li key={mapType}>
+                        <button
+                            onClick={() => handleMapSelect(mapType)}
+                            className={`w-full text-left px-4 py-2 text-sm capitalize transition-colors ${
+                                activeMap === mapType
+                                ? "bg-gray-100 text-orange-500 font-medium" // Highlight selected item
+                                : "text-gray-700 hover:bg-gray-100 hover:text-orange-500"
+                            }`}
+                        >
+                        {formatMapName(mapType)}
+                        </button>
+                    </li>
+                    ))}
+                </ul>
+                </div>
+            )}
         </div>
 
-        {/* Map Container - Adjust height as needed */}
-        <div className="w-full h-[500px] md:h-[600px] bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-          {/* The key prop helps React efficiently update when the endpoint changes */}
-          <CrimeMap
-            key={activeMap} // Important for re-fetching when tab changes
-            endpointPath={mapEndpoints[activeMap]}
-            className="w-full h-full" // Ensure map fills container
-          />
-        </div>
+         {/* Inner Container with rounded corners and padding */}
+         <div className="bg-gray-50 p-4 rounded-lg">
+            {/* Title */}
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Crime Map</h2>
+
+            {/* Map Container */}
+            <div className="w-full h-[500px] md:h-[600px] bg-white rounded-lg overflow-hidden shadow-inner">
+              <CrimeMap
+                key={activeMap} // Important for re-fetching when selection changes
+                endpointPath={mapEndpoints[activeMap]}
+                className="w-full h-full"
+              />
+            </div>
+        </div> {/* End of Inner Container */}
       </div>
 
     </div>

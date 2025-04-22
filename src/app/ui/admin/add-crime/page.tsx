@@ -6,6 +6,7 @@ import { fetchCoordinates } from "@/app/utils/geocoder";
 import { isPSGCCode } from "@/app/utils/ispsgc";
 import LocationDropdown from "@/app/components/LocationDropdown";
 import Button from "@/app/components/Button";
+import Swal from 'sweetalert2'; // Import SweetAlert2
 
 // --- Define consistent input/select styling ---
 const inputFieldStyles = "block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm";
@@ -56,12 +57,13 @@ export default function CrimeReportForm() {
   });
   const [isFetchingCoordinates, setIsFetchingCoordinates] = useState(false);
   const [previousFullAddress, setPreviousFullAddress] = useState("");
-  const [error, setError] = useState<string | null>(null); // Add error state
-  const [success, setSuccess] = useState<string | null>(null); // Add success state
+  // Removed error and success state, handled by SweetAlert
+  // const [error, setError] = useState<string | null>(null);
+  // const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Add loading state for submission
   const router = useRouter(); // Initialize router
 
-  // Handle input changes
+  // Handle input changes (remains the same)
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -77,7 +79,7 @@ export default function CrimeReportForm() {
     }
   };
 
-  // Handle location dropdown selection
+  // Handle location dropdown selection (remains the same)
   const handleLocationSelect = async (
     name: string,
     value: string,
@@ -87,10 +89,9 @@ export default function CrimeReportForm() {
     debouncedFetchCoordinates();
   };
 
-  // Function to fetch coordinates
+  // Function to fetch coordinates (remains the same)
   const fetchAndSetCoordinates = async () => {
     setIsFetchingCoordinates(true);
-    // Construct the address parts, prioritizing dropdown selections
     const addressParts = [
       formData.house_building_number,
       formData.street_name,
@@ -101,12 +102,9 @@ export default function CrimeReportForm() {
       formData.zip_code,
       formData.region_name,
     ];
-
-    // Filter out empty strings and join with commas
     let fullAddress = addressParts.filter(Boolean).join(", ").trim();
     console.log("Full Address:", fullAddress);
 
-    // Check if the address is a PSGC code
     if (
       isPSGCCode(formData.region) ||
       isPSGCCode(formData.province) ||
@@ -114,13 +112,8 @@ export default function CrimeReportForm() {
       isPSGCCode(formData.barangay)
     ) {
       console.log("Skipping geocoding for PSGC code:", fullAddress);
-      setFormData((prev) => ({
-        ...prev,
-        latitude: "",
-        longitude: "",
-      }));
+      setFormData((prev) => ({ ...prev, latitude: "", longitude: "" }));
     } else {
-      // Check if we have a valid address before fetching coordinates
       if (fullAddress !== "" && fullAddress !== previousFullAddress) {
         const coordinates = await fetchCoordinates(fullAddress);
         console.log("Coordinates:", coordinates);
@@ -131,11 +124,9 @@ export default function CrimeReportForm() {
             longitude: coordinates.longitude,
           }));
         } else {
-           // Optionally clear coordinates if geocoding fails for a valid address string
            setFormData((prev) => ({ ...prev, latitude: "", longitude: "" }));
         }
       } else if (fullAddress === "") {
-          // Clear coordinates if the address becomes empty
           setFormData((prev) => ({ ...prev, latitude: "", longitude: "" }));
       }
     }
@@ -143,27 +134,37 @@ export default function CrimeReportForm() {
     setIsFetchingCoordinates(false);
   };
 
-  // Debounced version of fetchAndSetCoordinates
+  // Debounced version of fetchAndSetCoordinates (remains the same)
   const debouncedFetchCoordinates = useRef(
     debounce(fetchAndSetCoordinates, 500)
   ).current;
 
-  // Handle form submission
+  // --- UPDATED Handle form submission ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true); // Set loading state for submission
-    setError(null);
-    setSuccess(null);
+    // Removed setError and setSuccess
+
     console.log("Form Data BEFORE stringify:", formData);
 
     // Basic validation example (add more as needed)
     if (!formData.crime_id || !formData.date || !formData.time || !formData.crime_type) {
-        setError("Please fill in all required Crime Details.");
+        // Use SweetAlert for validation error
+        Swal.fire({
+            icon: 'error',
+            title: 'Missing Information',
+            text: 'Please fill in all required Crime Details (*).',
+        });
         setIsLoading(false);
         return;
     }
     if (!formData.region || !formData.province || !formData.municipality_city || !formData.barangay) {
-        setError("Please select the full location (Region, Province, Municipality/City, Barangay).");
+        // Use SweetAlert for validation error
+        Swal.fire({
+            icon: 'error',
+            title: 'Missing Location',
+            text: 'Please select the full location (Region, Province, Municipality/City, Barangay).',
+        });
         setIsLoading(false);
         return;
     }
@@ -179,8 +180,17 @@ export default function CrimeReportForm() {
       });
 
       const result = await response.json();
+
       if (response.ok) {
-        setSuccess("Crime report submitted successfully!");
+        // Use SweetAlert for success
+        Swal.fire({
+          icon: 'success',
+          title: 'Success!',
+          text: 'Crime report submitted successfully!',
+          timer: 2000, // Auto close after 2 seconds
+          showConfirmButton: false,
+        });
+
         // Reset form
         setFormData({
           crime_id: "", date: "", time: "", region: "", province: "", municipality_city: "", barangay: "",
@@ -189,18 +199,31 @@ export default function CrimeReportForm() {
           event_proximity: "", crime_occurred_indoors_or_outdoors: "", house_building_number: "",
           street_name: "", purok_block_lot: "", zip_code: "", day_of_week: "",
         });
-
+        // Optionally redirect after success alert closes
+        // setTimeout(() => router.push('/ui/admin/view-crime'), 2100);
 
       } else {
-        throw new Error(result.message || result.error || "Failed to submit crime report.");
+        // Handle specific errors like duplicates or general failure
+        let errorMessage = result.message || result.error || "Failed to submit crime report.";
+        // Check for duplicate ID error (adjust status code/message as needed)
+        if (response.status === 409 || errorMessage.toLowerCase().includes('duplicate') || errorMessage.toLowerCase().includes('exists')) {
+            errorMessage = `Crime report with ID "${formData.crime_id}" already exists. Please use a unique ID.`;
+        }
+        throw new Error(errorMessage); // Throw error to be caught below
       }
     } catch (error: any) {
       console.error("Error submitting crime report:", error);
-      setError(error.message || "Submission failed. Please try again.");
+      // Use SweetAlert for submission errors
+      Swal.fire({
+        icon: 'error',
+        title: 'Submission Failed',
+        text: error.message || "An unexpected error occurred. Please try again.",
+      });
     } finally {
         setIsLoading(false); // Clear loading state
     }
   };
+  // --- END UPDATED handleSubmit ---
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-3xl mx-auto">
@@ -219,11 +242,11 @@ export default function CrimeReportForm() {
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Report a Crime</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Error/Success Messages */}
-        {error && <p className="text-center text-sm text-red-700 bg-red-50 p-3 rounded-md">{error}</p>}
-        {success && <p className="text-center text-sm text-green-700 bg-green-50 p-3 rounded-md">{success}</p>}
+        {/* Removed Error/Success Message Display */}
+        {/* {error && <p className="text-center text-sm text-red-700 bg-red-50 p-3 rounded-md">{error}</p>} */}
+        {/* {success && <p className="text-center text-sm text-green-700 bg-green-50 p-3 rounded-md">{success}</p>} */}
 
-        {/* Crime Details */}
+        {/* Crime Details (remains the same) */}
         <fieldset className="border border-gray-200 rounded-lg p-4">
             <legend className="text-lg font-semibold px-2 text-gray-700">Crime Details</legend>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -275,11 +298,10 @@ export default function CrimeReportForm() {
             </div>
         </fieldset>
 
-        {/* Location Details */}
+        {/* Location Details (remains the same) */}
         <fieldset className="border border-gray-200 rounded-lg p-4">
             <legend className="text-lg font-semibold px-2 text-gray-700">Location Details</legend>
-            <div className="space-y-4 pt-2"> {/* Use space-y for vertical spacing */}
-                {/* Location Dropdowns */}
+            <div className="space-y-4 pt-2">
                 <LocationDropdown
                     onSelect={handleLocationSelect}
                     selectedRegionFromParent={formData.region}
@@ -287,8 +309,6 @@ export default function CrimeReportForm() {
                     selectedMunicipalityFromParent={formData.municipality_city}
                     selectedBarangayFromParent={formData.barangay}
                 />
-
-                {/* Additional Location Fields */}
                 <h4 className="font-medium text-gray-600 pt-2">Specific Address Details</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -308,9 +328,7 @@ export default function CrimeReportForm() {
                         <input type="text" id="zip_code" name="zip_code" placeholder="e.g., 1000" value={formData.zip_code} onChange={handleChange} className={inputFieldStyles} />
                     </div>
                 </div>
-
-                {/* Coordinate Display */}
-                <div className="flex items-center justify-start space-x-3 pt-2 min-h-[30px]"> {/* Added min-height */}
+                <div className="flex items-center justify-start space-x-3 pt-2 min-h-[30px]">
                     {isFetchingCoordinates && (
                         <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
                     )}
@@ -325,7 +343,7 @@ export default function CrimeReportForm() {
             </div>
         </fieldset>
 
-        {/* Action Buttons */}
+        {/* Action Buttons (remains the same) */}
         <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3 justify-end">
             <Button
                 type="button"
@@ -338,7 +356,7 @@ export default function CrimeReportForm() {
             <Button
                 type="submit"
                 variant="submit"
-                className="min-w-[120px]" // Add min-width to prevent layout shift
+                className="min-w-[120px]"
                 isLoading={isLoading}
                 disabled={isLoading}
             >

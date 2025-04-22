@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '@/app/components/Button';
 import { UserSex } from '@/models/UserProfile';
+import Swal from 'sweetalert2'; // Import SweetAlert2
 
 // --- Define possible sex values for the dropdown ---
 const sexOptions: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
@@ -26,8 +27,9 @@ export default function AddUserPage() {
     role: 'user', // Default role
     status: 'approved', // Default status (admin adding likely approves directly)
   });
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  // Removed error and success state
+  // const [error, setError] = useState<string | null>(null);
+  // const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -36,21 +38,28 @@ export default function AddUserPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // --- UPDATED handleSubmit with SweetAlert ---
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
-    setSuccess(null);
+    // Removed setError(null) and setSuccess(null)
     setIsLoading(true);
 
     // --- Validation ---
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Validation Error',
+        text: 'Passwords do not match.',
+      });
       setIsLoading(false);
       return;
     }
-    // --- Add sex to required check ---
     if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.sex) {
-        setError('Please fill in all required fields (Email, Password, First Name, Last Name, Sex).');
+        Swal.fire({
+            icon: 'error',
+            title: 'Missing Information',
+            text: 'Please fill in all required fields (Email, Password, First Name, Last Name, Sex).',
+        });
         setIsLoading(false);
         return;
     }
@@ -74,18 +83,34 @@ export default function AddUserPage() {
         throw new Error(result.message || result.error || 'Failed to create user.');
       }
 
-      setSuccess('User created successfully! Redirecting...');
-      setTimeout(() => {
-        router.push('/ui/admin/user-management'); // Redirect back to the list
-      }, 2000);
+      // Show success alert
+      Swal.fire({
+        icon: 'success',
+        title: 'User Created!',
+        text: 'New user has been added successfully.',
+        timer: 2000,
+        showConfirmButton: false,
+      }).then(() => {
+        // Redirect after the alert closes
+        router.push('/ui/admin/user-management');
+      });
+
+      // Optionally clear form immediately if preferred, though redirect handles it
+      // setFormData({ ...initial state... });
 
     } catch (err: any) {
       console.error('Error creating user:', err);
-      setError(err.message || 'An unexpected error occurred.');
+      // Show error alert
+      Swal.fire({
+        icon: 'error',
+        title: 'Creation Failed',
+        text: err.message || 'An unexpected error occurred.',
+      });
     } finally {
       setIsLoading(false);
     }
   };
+  // --- END UPDATED handleSubmit ---
 
   return (
     // Use container style from User Management
@@ -106,11 +131,11 @@ export default function AddUserPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6"> {/* Increased space-y */}
 
-        {/* Error/Success Messages - Adjusted styling */}
-        {error && <p className="text-center text-sm text-red-700 bg-red-50 p-3 rounded-md">{error}</p>}
-        {success && <p className="text-center text-sm text-green-700 bg-green-50 p-3 rounded-md">{success}</p>}
+        {/* Removed Error/Success Message Display */}
+        {/* {error && <p className="text-center text-sm text-red-700 bg-red-50 p-3 rounded-md">{error}</p>} */}
+        {/* {success && <p className="text-center text-sm text-green-700 bg-green-50 p-3 rounded-md">{success}</p>} */}
 
-        {/* Account Fields */}
+        {/* Account Fields (remains the same) */}
         <fieldset className="border border-gray-200 rounded-lg p-4">
             <legend className="text-lg font-semibold px-2 text-gray-700">Account Details</legend>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -144,7 +169,7 @@ export default function AddUserPage() {
             </div>
         </fieldset>
 
-        {/* Profile Fields */}
+        {/* Profile Fields (remains the same) */}
         <fieldset className="border border-gray-200 rounded-lg p-4">
             <legend className="text-lg font-semibold px-2 text-gray-700">Profile Details</legend>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -192,7 +217,7 @@ export default function AddUserPage() {
             </div>
         </fieldset>
 
-        {/* Action Buttons */}
+        {/* Action Buttons (remains the same) */}
         <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3 justify-end"> {/* Added border */}
           <Button
             type="button"

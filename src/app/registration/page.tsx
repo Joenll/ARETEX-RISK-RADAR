@@ -17,6 +17,7 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false); // <-- State for the checkbox
   const router = useRouter();
 
   // Credentials Registration Handler
@@ -24,6 +25,14 @@ export default function RegisterPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
+
+    // --- Check if terms are agreed upon ---
+    if (!agreeToTerms) {
+        setError("You must agree to the Terms & Conditions to register.");
+        return; // Stop submission if terms are not agreed
+    }
+    // --- End terms check ---
+
     setIsLoading(true);
 
     const formData = new FormData(event.currentTarget);
@@ -59,6 +68,8 @@ export default function RegisterPage() {
       birthdate: formData.get("birthdate"),
       team: formData.get("team"),                     // Renamed from department
       sex: sex,
+      // You might optionally send agreeToTerms if your backend needs it
+      // agreeToTerms: agreeToTerms
     };
 
     console.log("Submitting registration data:", data);
@@ -224,13 +235,41 @@ export default function RegisterPage() {
               disabled={isLoading || isGoogleLoading}
             />
 
+            {/* --- Terms and Conditions Checkbox --- */}
+            <div className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                id="terms"
+                name="terms" // Good practice to add name
+                checked={agreeToTerms}
+                onChange={(e) => setAgreeToTerms(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2" // Adjusted styling
+                // Removed 'required' attribute here, validation handled in handleSubmit
+                disabled={isLoading || isGoogleLoading}
+              />
+              <label htmlFor="terms" className="text-gray-600 text-sm">
+                I agree to the{" "}
+                <Link
+                  href="/terms" // Adjust this URL to your actual terms page
+                  className="text-blue-600 hover:underline"
+                  target="_blank" // Optional: Open in new tab
+                  rel="noopener noreferrer" // Security for target="_blank"
+                >
+                  Terms & Conditions
+                </Link>
+              </label>
+            </div>
+            {/* --- End Terms and Conditions Checkbox --- */}
+
+
             {/* Submit Button */}
             <Button
               type="submit"
               variant="primary"
               className="w-full px-4 py-2 font-semibold rounded-xl shadow-md hover:bg-blue-700 mb-4"
               isLoading={isLoading}
-              disabled={isLoading || isGoogleLoading}
+              // Disable button if terms not agreed OR if loading
+              disabled={!agreeToTerms || isLoading || isGoogleLoading}
             >
               Create account
             </Button>

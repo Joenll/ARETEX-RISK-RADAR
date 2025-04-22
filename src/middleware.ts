@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 // Define root paths based on role
 const USER_AUTHENTICATED_ROOT = "/ui/dashboard";
 const ADMIN_AUTHENTICATED_ROOT = "/ui/admin/dashboard";
-const PUBLIC_PATHS = ["/", "/registration", "/about"]; // Your public pages
+const PUBLIC_PATHS = ["/", "/registration", "/about", "/terms"]; // Your public pages
 const AUTH_PAGES = ["/", "/registration"]; // Pages logged-in users should be redirected away from
 
 export async function middleware(req: NextRequest) {

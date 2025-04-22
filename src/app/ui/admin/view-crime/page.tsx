@@ -80,6 +80,57 @@ export interface CrimeReport {
     };
   }
 
+  // --- NEW: Pagination Helper Function ---
+const getPaginationItems = (currentPage: number, totalPages: number, maxVisiblePages: number = 5): (number | '...')[] => {
+  if (totalPages <= maxVisiblePages) {
+      // Show all pages if total is less than or equal to max visible
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  const items: (number | '...')[] = [];
+  const halfVisible = Math.floor(maxVisiblePages / 2);
+  const firstPage = 1;
+  const lastPage = totalPages;
+
+  // Always show the first page
+  items.push(firstPage);
+
+  // Calculate start and end for the middle section
+  let startPage = Math.max(firstPage + 1, currentPage - halfVisible + (maxVisiblePages % 2 === 0 ? 1 : 0));
+  let endPage = Math.min(lastPage - 1, currentPage + halfVisible);
+
+  // Adjust start/end if near the beginning or end
+  if (currentPage - halfVisible <= firstPage) {
+      endPage = firstPage + maxVisiblePages - 2; // -2 because first and last are always shown
+  }
+  if (currentPage + halfVisible >= lastPage) {
+      startPage = lastPage - maxVisiblePages + 2;
+  }
+
+  // Add ellipsis before the middle section if needed
+  if (startPage > firstPage + 1) {
+      items.push('...');
+  }
+
+  // Add the middle page numbers
+  for (let i = startPage; i <= endPage; i++) {
+      items.push(i);
+  }
+
+  // Add ellipsis after the middle section if needed
+  if (endPage < lastPage - 1) {
+      items.push('...');
+  }
+
+  // Always show the last page
+  items.push(lastPage);
+
+  return items;
+};
+// --- END NEW ---
+
+
+
 export default function CrimeReportList() {
   // --- State declarations ---
   const [crimeReports, setCrimeReports] = useState<CrimeReport[]>([]);
@@ -95,10 +146,8 @@ export default function CrimeReportList() {
   const [debouncedCrimeTypeSearchTerm, setDebouncedCrimeTypeSearchTerm] = useState("");
   const [searchLocation, setSearchLocation] = useState("");
   const [debouncedLocationSearchTerm, setDebouncedLocationSearchTerm] = useState("");
-  // --- NEW: Crime ID Search State ---
   const [searchCrimeId, setSearchCrimeId] = useState("");
   const [debouncedCrimeIdSearchTerm, setDebouncedCrimeIdSearchTerm] = useState("");
-  // --- END NEW ---
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -128,11 +177,11 @@ export default function CrimeReportList() {
       if (debouncedLocationSearchTerm) {
         url += `&search_location=${encodeURIComponent(debouncedLocationSearchTerm)}`;
       }
-      // --- NEW: Add Crime ID Search Term ---
+   
       if (debouncedCrimeIdSearchTerm) {
         url += `&search_crime_id=${encodeURIComponent(debouncedCrimeIdSearchTerm)}`;
       }
-      // --- END NEW ---
+   
 
       const response = await fetch(url);
       if (!response.ok) {
@@ -156,7 +205,7 @@ export default function CrimeReportList() {
   }, [
       currentPage, reportsPerPage, filterCaseStatus, filterStartDate, filterEndDate,
       debouncedCrimeTypeSearchTerm, debouncedLocationSearchTerm,
-      debouncedCrimeIdSearchTerm // <-- Add new dependency
+      debouncedCrimeIdSearchTerm
   ]);
 
   useEffect(() => {
@@ -185,7 +234,7 @@ export default function CrimeReportList() {
       setCurrentPage(1);
     }, 500)
   ).current;
-  // --- END NEW ---
+ 
 
   // --- Input Change Handlers ---
   const handleCrimeTypeSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,7 +255,7 @@ export default function CrimeReportList() {
     setSearchCrimeId(value);
     debouncedUpdateCrimeIdSearch(value);
   };
-  // --- END NEW ---
+
 
   // --- Filter/Page Handlers ---
   const handlePageChange = (page: number) => {
@@ -237,7 +286,7 @@ export default function CrimeReportList() {
     // --- NEW: Reset Crime ID Search ---
     setSearchCrimeId("");
     setDebouncedCrimeIdSearchTerm("");
-    // --- END NEW ---
+   
     setCurrentPage(1);
   };
 
@@ -306,8 +355,7 @@ export default function CrimeReportList() {
     if (debouncedLocationSearchTerm) params.append('search_location', debouncedLocationSearchTerm);
     // --- NEW: Add Crime ID Search Term to Export ---
     if (debouncedCrimeIdSearchTerm) params.append('search_crime_id', debouncedCrimeIdSearchTerm);
-    // --- END NEW ---
-
+    
     const exportUrl = `${baseUrl}?${params.toString()}`;
     console.log("Export URL:", exportUrl);
 
@@ -326,6 +374,8 @@ export default function CrimeReportList() {
 
   // --- UI Rendering ---
   const totalPages = Math.ceil(totalReports / reportsPerPage);
+
+  const paginationItems = getPaginationItems(currentPage, totalPages);
 
   // formatLocationString function...
   const formatLocationString = (location: CrimeReport['location']): string => {
@@ -387,7 +437,7 @@ export default function CrimeReportList() {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-800"
             disabled={isLoading}
           />
-          {/* --- END NEW --- */}
+   
           {/* Other Search Inputs */}
           <input
             type="text"
@@ -564,6 +614,7 @@ export default function CrimeReportList() {
       {/* Pagination... */}
       {!isLoading && totalPages > 1 && (
          <div className="flex flex-wrap justify-center items-center mt-8 space-x-1 space-y-1">
+          {/* Previous Button */}
           <Button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
@@ -572,16 +623,24 @@ export default function CrimeReportList() {
           >
             Previous
           </Button>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <Button
-              key={i + 1}
-              onClick={() => handlePageChange(i + 1)}
-              variant={currentPage === i + 1 ? 'primary' : 'outline'}
-              className={`${currentPage === i + 1 ? "font-bold" : "bg-white"}`}
-            >
-              {i + 1}
-            </Button>
-          ))}
+
+          {/* Dynamic Page Buttons */}
+          {paginationItems.map((item, index) =>
+            item === '...' ? (
+              <span key={`ellipsis-${index}`} className="px-2 py-1 text-gray-500">...</span>
+            ) : (
+              <Button
+                key={item}
+                onClick={() => handlePageChange(item)}
+                variant={currentPage === item ? 'primary' : 'outline'}
+                className={`${currentPage === item ? "font-bold" : "bg-white"}`}
+              >
+                {item}
+              </Button>
+            )
+          )}
+
+          {/* Next Button */}
           <Button
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}

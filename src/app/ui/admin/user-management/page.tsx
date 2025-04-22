@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { IUser } from '@/models/User';
 import { IUserProfile, UserSex } from '@/models/UserProfile';
 import { FaEdit, FaTrash, FaShareSquare, FaSearch, FaCheck, FaTimes, FaPlus } from 'react-icons/fa';
+import Button from '@/app/components/Button'; // Import the custom Button component
+import Swal from 'sweetalert2'; // Import SweetAlert2
 
 // Define a combined type for the user data we expect from the API
 interface UserWithProfile extends Omit<IUser, 'profile' | 'password'> {
@@ -22,30 +24,57 @@ const ITEMS_PER_PAGE = 10;
 // --- Define possible sex values for filtering ---
 const sexOptions: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
 
+// --- Pagination Helper Function (Copied from view-crime) ---
+const getPaginationItems = (currentPage: number, totalPages: number, maxVisiblePages: number = 5): (number | '...')[] => {
+    if (totalPages <= maxVisiblePages) {
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const items: (number | '...')[] = [];
+    const halfVisible = Math.floor(maxVisiblePages / 2);
+    const firstPage = 1;
+    const lastPage = totalPages;
+    items.push(firstPage);
+    let startPage = Math.max(firstPage + 1, currentPage - halfVisible + (maxVisiblePages % 2 === 0 ? 1 : 0));
+    let endPage = Math.min(lastPage - 1, currentPage + halfVisible);
+    if (currentPage - halfVisible <= firstPage + 1) {
+        endPage = Math.min(lastPage - 1, firstPage + maxVisiblePages - 2);
+        startPage = firstPage + 1;
+    } else if (currentPage + halfVisible >= lastPage - 1) {
+        startPage = Math.max(firstPage + 1, lastPage - maxVisiblePages + 2);
+        endPage = lastPage - 1;
+    }
+    if (startPage > firstPage + 1) items.push('...');
+    for (let i = startPage; i <= endPage; i++) items.push(i);
+    if (endPage < lastPage - 1) items.push('...');
+    if (lastPage > endPage) items.push(lastPage);
+    return items;
+};
+// --- END Pagination Helper Function ---
+
+
 export default function UserManagementPage() {
     // --- State ---
     const [users, setUsers] = useState<UserWithProfile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    // Keep error state for general fetch errors, but use Swal for action feedback
     const [error, setError] = useState<string | null>(null);
     const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('');
-    const [filterSex, setFilterSex] = useState<string>(''); // '' means 'All'
+    const [filterSex, setFilterSex] = useState<string>('');
     const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
     const router = useRouter();
     const [currentPage, setCurrentPage] = useState(1);
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
     const exportDropdownRef = useRef<HTMLDivElement>(null);
-    // --- NEW: State for export loading ---
     const [isExporting, setIsExporting] = useState(false);
 
-    // --- Data Fetching ---
+    // --- Data Fetching (remains the same) ---
     const fetchUsers = async () => {
         setIsLoading(true);
-        setError(null);
+        setError(null); // Clear general error on fetch
         try {
-            // Fetch users with profile populated
-            const response = await fetch('/api/users'); // Ensure this endpoint populates profile
+            const response = await fetch('/api/users');
             if (!response.ok) {
                 throw new Error(`Failed to fetch users: ${response.statusText}`);
             }
@@ -53,7 +82,7 @@ export default function UserManagementPage() {
             setUsers(data);
         } catch (err: any) {
             console.error("Error fetching users:", err);
-            setError(err.message || 'An unknown error occurred');
+            setError(err.message || 'An unknown error occurred while fetching users.'); // Set general error
         } finally {
             setIsLoading(false);
         }
@@ -63,7 +92,7 @@ export default function UserManagementPage() {
         fetchUsers();
     }, []);
 
-    // --- Close Export Dropdown ---
+    // --- Close Export Dropdown (remains the same) ---
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
@@ -76,7 +105,7 @@ export default function UserManagementPage() {
         };
     }, [exportDropdownRef]);
 
-    // --- Filtering and Searching ---
+    // --- Filtering and Searching (remains the same) ---
     const filteredAndSearchedUsers = useMemo(() => {
         return users.filter(user => {
             const statusMatch = filterStatus === '' || user.status === filterStatus;
@@ -85,7 +114,6 @@ export default function UserManagementPage() {
             const name = user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : '';
             const nameMatch = name.toLowerCase().includes(searchLower);
             const emailMatch = user.email.toLowerCase().includes(searchLower);
-            // Ensure employeeNumber is treated as a string for includes check
             const badgeMatch = !!user.profile?.employeeNumber && String(user.profile.employeeNumber).toLowerCase().includes(searchLower);
             const workPositionMatch = !!user.profile?.workPosition && user.profile.workPosition.toLowerCase().includes(searchLower);
             const teamMatch = !!user.profile?.team && user.profile.team.toLowerCase().includes(searchLower);
@@ -94,12 +122,12 @@ export default function UserManagementPage() {
         });
     }, [users, filterStatus, filterSex, searchTerm]);
 
-    // --- Reset page on filter/search change ---
+    // --- Reset page on filter/search change (remains the same) ---
     useEffect(() => {
         setCurrentPage(1);
     }, [filterStatus, filterSex, searchTerm]);
 
-    // --- Pagination Logic ---
+    // --- Pagination Logic (remains the same) ---
     const totalPages = Math.ceil(filteredAndSearchedUsers.length / ITEMS_PER_PAGE);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -113,10 +141,9 @@ export default function UserManagementPage() {
         }
     };
 
-    // --- Selection Handling ---
+    // --- Selection Handling (remains the same) ---
     const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.checked) {
-            // Select only the IDs of the currently filtered users
             const allFilteredIds = new Set(filteredAndSearchedUsers.map(user => user._id));
             setSelectedUserIds(allFilteredIds);
         } else {
@@ -134,13 +161,11 @@ export default function UserManagementPage() {
         setSelectedUserIds(newSelectedUserIds);
     };
 
-    // Check if all *currently visible filtered* users are selected
     const isAllFilteredSelected = useMemo(() => {
         if (filteredAndSearchedUsers.length === 0) return false;
         return filteredAndSearchedUsers.every(user => selectedUserIds.has(user._id));
     }, [filteredAndSearchedUsers, selectedUserIds]);
 
-    // Check if some, but not all, *currently visible filtered* users are selected
     const isIndeterminate = useMemo(() => {
         if (filteredAndSearchedUsers.length === 0) return false;
         const selectedCountInFilter = filteredAndSearchedUsers.filter(user => selectedUserIds.has(user._id)).length;
@@ -152,9 +177,11 @@ export default function UserManagementPage() {
     const setActionLoadingState = (userId: string, isLoading: boolean) => {
         setActionLoading(prev => ({ ...prev, [userId]: isLoading }));
     };
+
+    // --- UPDATED handleApprove ---
     const handleApprove = async (userId: string) => {
         setActionLoadingState(userId, true);
-        setError(null);
+        // setError(null); // Clear general error, Swal will handle action error
         try {
             const response = await fetch(`/api/users/${userId}/status`, {
                 method: 'PATCH',
@@ -165,7 +192,15 @@ export default function UserManagementPage() {
                 const errorData = await response.json();
                 throw new Error(`Failed to approve user: ${response.statusText} - ${errorData.message || errorData.error}`);
             }
-            await fetchUsers(); // Refetch all users to update the list
+            // Show success alert
+            Swal.fire({
+                icon: 'success',
+                title: 'Approved!',
+                text: 'User status updated to approved.',
+                timer: 1500,
+                showConfirmButton: false,
+            });
+            await fetchUsers(); // Refetch users
             setSelectedUserIds(prev => {
                 const next = new Set(prev);
                 next.delete(userId);
@@ -173,14 +208,21 @@ export default function UserManagementPage() {
             });
         } catch (err: any) {
             console.error("Error approving user:", err);
-            setError(err.message || 'An unknown error occurred while approving user');
+            // Show error alert
+            Swal.fire({
+                icon: 'error',
+                title: 'Approval Failed',
+                text: err.message || 'An unknown error occurred while approving user.',
+            });
         } finally {
             setActionLoadingState(userId, false);
         }
      };
+
+    // --- UPDATED handleReject ---
     const handleReject = async (userId: string) => {
         setActionLoadingState(userId, true);
-        setError(null);
+        // setError(null);
         try {
             const response = await fetch(`/api/users/${userId}/status`, {
                 method: 'PATCH',
@@ -191,7 +233,15 @@ export default function UserManagementPage() {
                 const errorData = await response.json();
                 throw new Error(`Failed to reject user: ${response.statusText} - ${errorData.message || errorData.error}`);
             }
-            await fetchUsers(); // Refetch all users
+            // Show success alert
+            Swal.fire({
+                icon: 'success',
+                title: 'Rejected!',
+                text: 'User status updated to rejected.',
+                timer: 1500,
+                showConfirmButton: false,
+            });
+            await fetchUsers();
              setSelectedUserIds(prev => {
                 const next = new Set(prev);
                 next.delete(userId);
@@ -199,74 +249,137 @@ export default function UserManagementPage() {
             });
         } catch (err: any) {
             console.error("Error rejecting user:", err);
-            setError(err.message || 'An unknown error occurred while rejecting user');
+            // Show error alert
+            Swal.fire({
+                icon: 'error',
+                title: 'Rejection Failed',
+                text: err.message || 'An unknown error occurred while rejecting user.',
+            });
         } finally {
             setActionLoadingState(userId, false);
         }
      };
+
+    // --- UPDATED handleDelete ---
     const handleDelete = async (userId: string, userName: string) => {
-        if (!window.confirm(`Are you sure you want to permanently delete the user "${userName}"? This action cannot be undone.`)) {
-            return;
-        }
-        setActionLoadingState(userId, true);
-        setError(null);
-        try {
-            const response = await fetch(`/api/users/${userId}`, {
-                method: 'DELETE',
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Failed to delete user: ${response.statusText} - ${errorData.message || errorData.error}`);
+        // Use SweetAlert for confirmation
+        Swal.fire({
+            title: 'Are you sure?',
+            html: `You are about to permanently delete the user "<b>${userName}</b>".<br/>This action cannot be undone.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33', // Red for delete
+            cancelButtonColor: '#3085d6', // Blue for cancel
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                // Proceed with deletion if confirmed
+                setActionLoadingState(userId, true);
+                // setError(null);
+                try {
+                    const response = await fetch(`/api/users/${userId}`, {
+                        method: 'DELETE',
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`Failed to delete user: ${response.statusText} - ${errorData.message || errorData.error}`);
+                    }
+                    // Show success alert
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Deleted!',
+                        text: `User "${userName}" has been deleted.`,
+                        timer: 1500,
+                        showConfirmButton: false,
+                    });
+                    await fetchUsers();
+                    setSelectedUserIds(prev => {
+                        const next = new Set(prev);
+                        next.delete(userId);
+                        return next;
+                    });
+                    console.log(`User ${userId} deleted successfully.`);
+                } catch (err: any) {
+                    console.error("Error deleting user:", err);
+                    // Show error alert
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Deletion Failed',
+                        text: err.message || 'An unknown error occurred while deleting user.',
+                    });
+                } finally {
+                    setActionLoadingState(userId, false);
+                }
             }
-            await fetchUsers(); // Refetch all users
-            setSelectedUserIds(prev => {
-                const next = new Set(prev);
-                next.delete(userId);
-                return next;
-            });
-            console.log(`User ${userId} deleted successfully.`);
-        } catch (err: any) {
-            console.error("Error deleting user:", err);
-            setError(err.message || 'An unknown error occurred while deleting user');
-        } finally {
-            setActionLoadingState(userId, false);
-        }
+        });
      };
+
     const handleEdit = (userId: string) => {
         router.push(`/ui/admin/user-management/${userId}/edit`);
      };
     const handleAddUser = () => {
         router.push('/ui/admin/user-management/add-user');
      };
+
+    // --- UPDATED handleBulkAction ---
     const handleBulkAction = async (action: 'approve' | 'reject') => {
         const userIds = Array.from(selectedUserIds);
         if (userIds.length === 0) return;
         const status = action === 'approve' ? 'approved' : 'rejected';
-        // Use general loading state for bulk actions
-        setIsLoading(true);
-        setError(null);
-        try {
-            // Assuming you have a bulk update endpoint
-            const response = await fetch('/api/users/bulk-status', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userIds, status }),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Failed to ${action} selected users: ${response.statusText} - ${errorData.message || 'Unknown error'}`);
+        const actionVerb = action === 'approve' ? 'approving' : 'rejecting';
+        const actionPast = action === 'approve' ? 'approved' : 'rejected';
+
+        // Confirmation for bulk action
+        Swal.fire({
+            title: `Confirm Bulk ${actionPast.charAt(0).toUpperCase() + actionPast.slice(1)}`,
+            text: `Are you sure you want to ${action} ${userIds.length} selected user(s)?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#aaa',
+            confirmButtonText: `Yes, ${action} selected!`,
+            cancelButtonText: 'Cancel'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                setIsLoading(true); // Use general loading for bulk
+                // setError(null);
+                try {
+                    const response = await fetch('/api/users/bulk-status', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userIds, status }),
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`Failed to ${action} selected users: ${response.statusText} - ${errorData.message || 'Unknown error'}`);
+                    }
+                    // Show success alert
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: `${userIds.length} user(s) have been ${actionPast}.`,
+                        timer: 1500,
+                        showConfirmButton: false,
+                    });
+                    await fetchUsers();
+                    setSelectedUserIds(new Set());
+                } catch (err: any) {
+                    console.error(`Error during bulk ${action}:`, err);
+                    // Show error alert
+                    Swal.fire({
+                        icon: 'error',
+                        title: `Bulk ${actionPast.charAt(0).toUpperCase() + actionPast.slice(1)} Failed`,
+                        text: err.message || `An unknown error occurred during bulk ${action}.`,
+                    });
+                } finally {
+                    setIsLoading(false);
+                }
             }
-            await fetchUsers(); // Refetch users
-            setSelectedUserIds(new Set()); // Clear selection after successful bulk action
-        } catch (err: any) {
-            console.error(`Error during bulk ${action}:`, err);
-            setError(err.message || `An unknown error occurred during bulk ${action}`);
-        } finally {
-            setIsLoading(false);
-        }
+        });
      };
 
-    // --- Helper ---
+    // --- Helper (remains the same) ---
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'approved': return 'text-green-700 bg-green-100';
@@ -276,49 +389,28 @@ export default function UserManagementPage() {
         }
     };
 
-    // --- *** EXPORT HANDLERS *** ---
+    // --- Export Handlers (remains the same) ---
     const handleExport = (format: 'excel' | 'pdf') => {
-        setIsExporting(true); // Indicate export is starting
-        setError(null); // Clear previous errors
+        setIsExporting(true);
+        setError(null);
         console.log(`Exporting to ${format.toUpperCase()}...`);
-
-        // Construct the base URL
         const baseUrl = '/api/users/export';
         const params = new URLSearchParams();
-
-        // Add format parameter
         params.append('format', format);
-
-        // Add filter parameters if they are set
-        if (filterStatus) {
-            params.append('status', filterStatus);
-        }
-        if (filterSex) {
-            params.append('sex', filterSex);
-        }
-        if (searchTerm) {
-            params.append('search', searchTerm);
-        }
-
-        // Construct the final URL
+        if (filterStatus) params.append('status', filterStatus);
+        if (filterSex) params.append('sex', filterSex);
+        if (searchTerm) params.append('search', searchTerm);
         const exportUrl = `${baseUrl}?${params.toString()}`;
         console.log("Export URL:", exportUrl);
-
-        // Trigger the download by navigating the browser
         window.location.href = exportUrl;
-
         setIsExportDropdownOpen(false);
-
-        // Reset exporting state after a short delay
-        setTimeout(() => {
-            setIsExporting(false);
-        }, 3000); // Increased delay slightly
+        setTimeout(() => setIsExporting(false), 3000);
     };
-
-    // Specific handlers calling the generic one
     const handleExportExcel = () => handleExport('excel');
     const handleExportPDF = () => handleExport('pdf');
-    // --- *** END UPDATED EXPORT HANDLERS *** ---
+
+    // --- Calculate pagination items for rendering (remains the same) ---
+    const paginationItems = getPaginationItems(currentPage, totalPages);
 
     //----  UI PART ------
     return (
@@ -329,7 +421,7 @@ export default function UserManagementPage() {
                 <p className="text-sm text-gray-600">Manages users information</p>
             </div>
 
-            {/* Header Section */}
+            {/* Header Section (remains the same) */}
             <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
                 {/* Left Section: Add User Button */}
                 <div className="flex items-center space-x-4">
@@ -337,7 +429,7 @@ export default function UserManagementPage() {
                         type="button"
                         className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 disabled:opacity-50"
                         onClick={handleAddUser}
-                        disabled={isLoading} // Disable if main list is loading
+                        disabled={isLoading}
                     >
                         <FaPlus className="h-5 w-5 mr-2" />
                         Add New User
@@ -352,7 +444,7 @@ export default function UserManagementPage() {
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        disabled={isLoading} // Disable search during load
+                        disabled={isLoading}
                     />
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                         <FaSearch className="h-5 w-5 text-gray-400" aria-hidden="true" />
@@ -366,7 +458,7 @@ export default function UserManagementPage() {
                         <button
                             onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
                             className={`flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-lg shadow-md hover:bg-blue-200 ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            disabled={isExporting || isLoading} // Disable if exporting or main list loading
+                            disabled={isExporting || isLoading}
                         >
                             {isExporting ? (
                                 <>
@@ -413,7 +505,7 @@ export default function UserManagementPage() {
                             value={filterSex}
                             onChange={(e) => setFilterSex(e.target.value)}
                             className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 text-sm"
-                            disabled={isLoading} // Disable during load
+                            disabled={isLoading}
                         >
                             <option value="">All Sexes</option>
                             {sexOptions.map(sex => (
@@ -430,7 +522,7 @@ export default function UserManagementPage() {
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
                             className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 text-sm"
-                            disabled={isLoading} // Disable during load
+                            disabled={isLoading}
                         >
                             <option value="">All Statuses</option>
                             <option value="pending">Pending</option>
@@ -441,32 +533,35 @@ export default function UserManagementPage() {
                 </div>
             </div>
 
-            {/* Bulk Action Buttons */}
+            {/* Bulk Action Buttons (remains the same) */}
             <div className={`mb-4 ${selectedUserIds.size > 0 ? 'block' : 'hidden'}`}>
                 <span className="mr-4 text-sm font-medium text-gray-700">{selectedUserIds.size} user(s) selected</span>
-                <button
+                <Button
+                    variant="primary"
                     onClick={() => handleBulkAction('approve')}
-                    className="px-3 py-1 mr-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                    disabled={isLoading} // Disable during load
+                    className="mr-2 text-sm"
+                    disabled={isLoading}
                 >
                     Approve Selected
-                </button>
-                <button
+                </Button>
+                <Button
+                    variant="secondary"
                     onClick={() => handleBulkAction('reject')}
-                    className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-50"
-                    disabled={isLoading} // Disable during load
+                    className="text-sm"
+                    disabled={isLoading}
                 >
                     Reject Selected
-                </button>
+                </Button>
             </div>
 
             {/* Loading/Error/Empty States */}
             {isLoading && !users.length && <div className="flex justify-center items-center h-32"><div className="loader border-t-4 border-blue-500 rounded-full w-12 h-12 animate-spin"></div></div>}
-            {error && <div className="my-4 rounded-md bg-red-50 p-4 text-sm text-red-700">Error: {error}</div>}
+            {/* Display general fetch error if present */}
+            {error && <div className="my-4 rounded-md bg-red-50 p-4 text-sm text-red-700">Error fetching users: {error}</div>}
             {!isLoading && !error && users.length === 0 && <div className="text-center py-10 text-gray-500">No users found.</div>}
             {!isLoading && !error && users.length > 0 && filteredAndSearchedUsers.length === 0 && <div className="text-center py-10 text-gray-500">No users match your filter/search.</div>}
 
-            {/* Table Section */}
+            {/* Table Section (remains the same) */}
             {users.length > 0 && filteredAndSearchedUsers.length > 0 && (
                 <div className="overflow-x-auto border border-gray-200 rounded-lg">
                     <table className="min-w-full bg-white divide-y divide-gray-200 table-fixed">
@@ -480,10 +575,9 @@ export default function UserManagementPage() {
                                         ref={input => { if (input) input.indeterminate = isIndeterminate; }}
                                         checked={isAllFilteredSelected}
                                         onChange={handleSelectAll}
-                                        disabled={isLoading} // Disable during load
+                                        disabled={isLoading}
                                     />
                                 </th>
-                                {/* Adjusted widths slightly */}
                                 <th className="px-2 py-2 w-1/5">Name</th>
                                 <th className="px-2 py-2 w-1/5">Email</th>
                                 <th className="px-2 py-2 w-16">Sex</th>
@@ -500,10 +594,7 @@ export default function UserManagementPage() {
                                 const userName = user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.email;
                                 const isActionLoading = actionLoading[user._id] || false;
                                 const isSelected = selectedUserIds.has(user._id);
-                                // Combine general loading and specific action loading for disabling
                                 const isDisabled = isActionLoading || isLoading;
-
-                                // Determine if actions are applicable
                                 const canApprove = user.status !== 'approved';
                                 const canReject = user.status !== 'rejected';
 
@@ -517,7 +608,7 @@ export default function UserManagementPage() {
                                                 checked={isSelected}
                                                 onChange={(e) => handleSelectUser(e, user._id)}
                                                 value={user._id}
-                                                disabled={isLoading} // Disable during load
+                                                disabled={isLoading}
                                             />
                                         </td>
                                         <td className="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900 truncate">{user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : 'N/A'}</td>
@@ -537,7 +628,6 @@ export default function UserManagementPage() {
                                                 <span className="text-xs text-gray-500">Processing...</span>
                                             ) : (
                                                 <div className="flex justify-center items-center space-x-3">
-                                                    {/* Edit Button */}
                                                     <button
                                                         onClick={() => handleEdit(user._id)}
                                                         title="Edit"
@@ -546,7 +636,6 @@ export default function UserManagementPage() {
                                                     >
                                                         <FaEdit />
                                                     </button>
-                                                    {/* Approve Button */}
                                                     <button
                                                         onClick={() => handleApprove(user._id)}
                                                         title={canApprove ? "Approve" : "Already Approved"}
@@ -555,7 +644,6 @@ export default function UserManagementPage() {
                                                     >
                                                         <FaCheck />
                                                     </button>
-                                                    {/* Reject Button */}
                                                     <button
                                                         onClick={() => handleReject(user._id)}
                                                         title={canReject ? "Reject" : "Already Rejected"}
@@ -564,7 +652,6 @@ export default function UserManagementPage() {
                                                     >
                                                         <FaTimes />
                                                     </button>
-                                                    {/* Delete Button */}
                                                     <button
                                                         onClick={() => handleDelete(user._id, userName)}
                                                         title="Delete"
@@ -584,44 +671,46 @@ export default function UserManagementPage() {
                 </div>
             )}
 
-            {/* Pagination Section */}
+            {/* Pagination Section (remains the same) */}
             {totalPages > 1 && (
-                <div className="flex justify-between items-center mt-4 border-t border-gray-200 pt-4">
-                    <button
+                <div className="flex flex-wrap justify-between items-center mt-4 border-t border-gray-200 pt-4">
+                    <Button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1 || isLoading}
-                        className={`px-4 py-2 rounded-lg shadow-md text-sm ${currentPage === 1 ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-gray-100 text-gray-800 hover:bg-blue-600 hover:text-white"}`}
+                        variant="back"
+                        className={`text-sm ${currentPage === 1 ? "cursor-not-allowed" : ""}`}
                     >
                         Previous
-                    </button>
-                    <div className="flex space-x-2 items-center"> {/* Added items-center */}
-                        <span className="text-sm text-gray-700 hidden sm:inline">
-                            Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
-                            &nbsp;({filteredAndSearchedUsers.length} users) {/* Added space */}
-                        </span>
-                        {/* Consider more advanced pagination logic for many pages */}
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            const pageNum = i + 1; // Simple pagination for first 5 pages
-                            // Add logic here for ellipsis and showing pages around current page if needed
-                            return (
-                                <button
-                                    key={pageNum}
-                                    onClick={() => handlePageChange(pageNum)}
-                                    className={`px-3 py-1 rounded-lg shadow-md text-sm ${currentPage === pageNum ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-800 hover:bg-blue-600 hover:text-white"}`}
-                                    disabled={isLoading}
-                                >
-                                    {pageNum}
-                                </button>
-                            );
-                        })}
+                    </Button>
+                    <div className="flex space-x-1 items-center">
+                        {paginationItems.map((item, index) =>
+                            item === '...' ? (
+                            <span key={`ellipsis-${index}`} className="px-2 py-1 text-gray-500">...</span>
+                            ) : (
+                            <Button
+                                key={item}
+                                onClick={() => handlePageChange(item)}
+                                variant={currentPage === item ? 'primary' : 'outline'}
+                                className={`text-sm ${currentPage === item ? "font-bold" : "bg-white"}`}
+                                disabled={isLoading}
+                            >
+                                {item}
+                            </Button>
+                            )
+                        )}
                     </div>
-                    <button
+                    <span className="text-sm text-gray-700 hidden md:inline">
+                        Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
+                        &nbsp;({filteredAndSearchedUsers.length} users)
+                    </span>
+                    <Button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages || isLoading}
-                        className={`px-4 py-2 rounded-lg shadow-md text-sm ${currentPage === totalPages ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-gray-100 text-gray-800 hover:bg-blue-600 hover:text-white"}`}
+                        variant="secondary"
+                        className={`text-sm ${currentPage === totalPages ? "cursor-not-allowed" : ""}`}
                     >
                         Next
-                    </button>
+                    </Button>
                 </div>
             )}
         </div>

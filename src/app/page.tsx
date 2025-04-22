@@ -93,7 +93,7 @@ export default function SignInPage() {
 
   // --- Google Sign-In Handler ---
   const handleGoogleSignIn = async () => {
-    setError("");
+    setError("Google registration is not yet implemented.");
     setIsGoogleLoading(true);
     try {
       // We want NextAuth to redirect to '/' initially after login.

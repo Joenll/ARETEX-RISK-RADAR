@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react"; // Removed 'use' import
+import { useState, useEffect, useRef } from "react";
 import { fetchCoordinates } from "@/app/utils/geocoder";
 import { isPSGCCode } from "@/app/utils/ispsgc";
 import LocationDropdown from "@/app/components/LocationDropdown";
 import { useRouter } from "next/navigation";
-import Button from "@/app/components/Button"; // Import Button component
+import Button from "@/app/components/Button";
+import Swal from 'sweetalert2'; // Import SweetAlert2
 
 // --- Define consistent input/select styling ---
 const inputFieldStyles = "block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm";
 const labelStyles = "block text-gray-700 text-sm font-bold mb-1";
-const selectStyles = `${inputFieldStyles} bg-white`; // Base select styles
+const selectStyles = `${inputFieldStyles} bg-white`;
 
-// Debounce function (Consider moving to a utils file)
+// Debounce function (remains the same)
 function debounce<T extends (...args: any[]) => void>(
   func: T,
   delay: number
@@ -28,16 +29,16 @@ function debounce<T extends (...args: any[]) => void>(
   };
 }
 
-// CrimeReport interface (Consider moving to a types file, e.g., src/types/crimeReport.ts)
+// CrimeReport interface (remains the same)
 interface CrimeReport {
   _id: string;
   crime_id: string;
   date: string;
   time: string;
-  region: string; // PSGC Code
-  province: string; // PSGC Code
-  municipality_city: string; // PSGC Code
-  barangay: string; // PSGC Code
+  region: string;
+  province: string;
+  municipality_city: string;
+  barangay: string;
   region_name?: string;
   province_name?: string;
   municipality_city_name?: string;
@@ -54,20 +55,18 @@ interface CrimeReport {
   purok_block_lot: string;
   zip_code: string;
   day_of_week: string;
-  // Populated data from API
   location?: {
     _id: string;
     house_building_number: string;
     street_name: string;
     purok_block_lot: string;
-    barangay: string; // PSGC Code
-    municipality_city: string; // PSGC Code
-    province: string; // PSGC Code
+    barangay: string;
+    municipality_city: string;
+    province: string;
     zip_code: string;
-    region: string; // PSGC Code
+    region: string;
     latitude: number;
     longitude: number;
-    // Assuming these name fields exist in your Location model/API response
     region_name?: string;
     province_name?: string;
     municipality_city_name?: string;
@@ -80,17 +79,12 @@ interface CrimeReport {
   };
 }
 
-
-// Define the props for the Page component, including params
 interface EditCrimeReportPageProps {
   params: {
-    crimeReportId: string; // This comes from the URL segment [crimeReportId]
+    crimeReportId: string;
   };
 }
 
-
-
-// This is the actual Page component that Next.js renders
 export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps) {
   const { crimeReportId } = params;
 
@@ -101,28 +95,27 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true); // For initial data load
   const [isSubmitting, setIsSubmitting] = useState(false); // For form submission
-  const [error, setError] = useState<string | null>(null); // State for error messages
-  const [success, setSuccess] = useState<string | null>(null); // State for success messages
+  const [initialLoadError, setInitialLoadError] = useState<string | null>(null); // Separate state for initial load error
 
   // --- useEffect to fetch data ---
   useEffect(() => {
     if (!crimeReportId || !/^[0-9a-fA-F]{24}$/.test(crimeReportId)) {
       console.error("Invalid crimeReportId format:", crimeReportId);
-      setError("Invalid Crime Report ID provided in URL.");
+      setInitialLoadError("Invalid Crime Report ID provided in URL."); // Use specific state
       setIsLoading(false);
       return;
     }
 
     const fetchCrimeReport = async () => {
       setIsLoading(true);
-      setError(null);
+      setInitialLoadError(null); // Clear previous load error
       try {
         const response = await fetch(`/api/crime-reports/${crimeReportId}`);
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
-          if (response.status === 404) setError(`Crime report not found (ID: ${crimeReportId}).`);
-          else setError(`Failed to load crime report: ${errorMessage}`);
+          if (response.status === 404) setInitialLoadError(`Crime report not found (ID: ${crimeReportId}).`);
+          else setInitialLoadError(`Failed to load crime report: ${errorMessage}`);
           throw new Error(errorMessage);
         }
         const data = await response.json();
@@ -164,10 +157,10 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
           ];
           setPreviousFullAddress(initialAddressParts.filter(Boolean).join(", ").trim());
         } else {
-          setError("Failed to parse crime report data from API.");
+          setInitialLoadError("Failed to parse crime report data from API.");
         }
       } catch (fetchError: any) {
-        if (!error) setError(`An unexpected error occurred while fetching data: ${fetchError.message}`);
+        if (!initialLoadError) setInitialLoadError(`An unexpected error occurred while fetching data: ${fetchError.message}`);
       } finally {
         setIsLoading(false);
       }
@@ -176,7 +169,7 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crimeReportId]); // Only run when crimeReportId changes
 
-  // --- Handlers ---
+  // --- Handlers (handleChange, handleLocationSelect, fetchAndSetCoordinates, debouncedFetchCoordinates remain the same) ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -225,24 +218,38 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
 
   const debouncedFetchCoordinates = useRef(debounce(fetchAndSetCoordinates, 700)).current;
 
+  // --- UPDATED handleSubmit with SweetAlert ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true); // Use isSubmitting state
-    setError(null);
-    setSuccess(null);
+    setIsSubmitting(true);
+    // Removed setError and setSuccess
+
     if (!crimeReportId || !/^[0-9a-fA-F]{24}$/.test(crimeReportId)) {
-      setError("Error: Cannot update report. Invalid ID.");
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid ID',
+        text: 'Cannot update report due to an invalid ID.',
+      });
       setIsSubmitting(false);
       return;
     }
+
     // Add more validation as needed
     if (!formData.crime_id || !formData.date || !formData.time || !formData.crime_type) {
-        setError("Please fill in all required Crime Details.");
+        Swal.fire({
+            icon: 'error',
+            title: 'Missing Information',
+            text: 'Please fill in all required Crime Details (*).',
+        });
         setIsSubmitting(false);
         return;
     }
     if (!formData.region || !formData.province || !formData.municipality_city || !formData.barangay) {
-        setError("Please select the full location (Region, Province, Municipality/City, Barangay).");
+        Swal.fire({
+            icon: 'error',
+            title: 'Missing Location',
+            text: 'Please select the full location (Region, Province, Municipality/City, Barangay).',
+        });
         setIsSubmitting(false);
         return;
     }
@@ -255,38 +262,53 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
         body: JSON.stringify(formData),
       });
       const result = await response.json();
+
       if (response.ok) {
-        setSuccess("Crime report updated successfully! Redirecting...");
-        setTimeout(() => router.push("/ui/admin/view-crime"), 1500); // Navigate on success
+        // Show success alert
+        Swal.fire({
+          icon: 'success',
+          title: 'Updated!',
+          text: 'Crime report updated successfully!',
+          timer: 1500, // Auto close
+          showConfirmButton: false,
+        }).then(() => {
+          // Redirect after the alert closes
+          router.push("/ui/admin/view-crime");
+        });
       } else {
+        // Handle specific errors or general failure
         const errorMessage = result.error || 'Unknown error during update.';
         throw new Error(errorMessage);
       }
     } catch (submitError: any) {
       console.error("Error submitting update:", submitError);
-      const message = `Update failed: ${submitError.message || 'Network error'}`;
-      setError(message);
+      // Show error alert
+      Swal.fire({
+        icon: 'error',
+        title: 'Update Failed',
+        text: `Update failed: ${submitError.message || 'Network error'}`,
+      });
     } finally {
         setIsSubmitting(false); // Clear submitting state
     }
   };
+  // --- END UPDATED handleSubmit ---
 
   // --- Render Logic ---
   if (isLoading) {
     return (
-      // Use consistent loading spinner style
       <div className="flex justify-center items-center h-32">
         <div className="loader border-t-4 border-blue-500 rounded-full w-12 h-12 animate-spin"></div>
       </div>
     );
   }
 
-  if (error && !formData._id) {
+  // Display initial load error prominently if it occurred
+  if (initialLoadError && !formData._id) {
     return (
-        // Use consistent error message styling
         <div className="bg-white rounded-lg shadow-md p-6 border border-red-300 max-w-3xl mx-auto mt-10">
             <h2 className="text-xl font-semibold mb-4 text-red-700">Error Loading Report</h2>
-            <p className="text-red-600">{error}</p>
+            <p className="text-red-600">{initialLoadError}</p>
             <div className="mt-6 flex justify-end">
                 <Button variant="back" onClick={() => router.back()}>
                     Go Back
@@ -298,7 +320,6 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
 
   // --- JSX Form ---
   return (
-    // Apply container styling
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-3xl mx-auto">
        <button
             onClick={() => router.back()}
@@ -315,12 +336,12 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
         Edit Crime Report <span className="text-sm font-normal text-gray-500"></span>
       </h1>
 
-      {/* Display submission error/success messages */}
-      {error && <p className="mb-4 text-center text-sm text-red-700 bg-red-50 p-3 rounded-md">{error}</p>}
-      {success && <p className="mb-4 text-center text-sm text-green-700 bg-green-50 p-3 rounded-md">{success}</p>}
+      {/* Removed submission error/success message display */}
+      {/* {error && <p className="mb-4 text-center text-sm text-red-700 bg-red-50 p-3 rounded-md">{error}</p>} */}
+      {/* {success && <p className="mb-4 text-center text-sm text-green-700 bg-green-50 p-3 rounded-md">{success}</p>} */}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Crime Details Section */}
+        {/* Crime Details Section (remains the same) */}
         <fieldset className="border border-gray-200 rounded-lg p-4">
           <legend className="text-lg font-semibold px-2 text-gray-700">Crime Details</legend>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -372,13 +393,11 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
           </div>
         </fieldset>
 
-       {/* Location Details Section */}
+       {/* Location Details Section (remains the same) */}
        <fieldset className="border border-gray-200 rounded-lg p-4">
           <legend className="text-lg font-semibold px-2 text-gray-700">Location Details</legend>
           <p className="text-xs text-gray-500 px-2 mb-3">Only re-select dropdowns if the location needs changing.</p>
           <div className="space-y-4 pt-2">
-             {/* Location Dropdown - Pass codes */}
-             {/* Apply consistent styling within LocationDropdown component if possible */}
              <LocationDropdown
                 onSelect={handleLocationSelect}
                 selectedRegionFromParent={formData.region || ""}
@@ -386,8 +405,6 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
                 selectedMunicipalityFromParent={formData.municipality_city || ""}
                 selectedBarangayFromParent={formData.barangay || ""}
              />
-
-             {/* Specific Address Fields */}
              <h4 className="font-medium text-gray-600 pt-2">Specific Address</h4>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div>
@@ -407,8 +424,6 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
                  <input id="zip_code" type="text" name="zip_code" value={formData.zip_code || ""} onChange={handleChange} className={inputFieldStyles}/>
                </div>
              </div>
-
-             {/* Coordinates Display */}
              <div className="flex items-center justify-start space-x-3 pt-2 min-h-[30px]">
                 <span className="text-sm font-medium text-gray-700">Coordinates:</span>
                 {isFetchingCoordinates ? (
@@ -424,7 +439,7 @@ export default function EditCrimeReportPage({ params }: EditCrimeReportPageProps
           </div>
         </fieldset>
 
-        {/* Action Buttons */}
+        {/* Action Buttons (remains the same) */}
         <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3 justify-end">
             <Button
                 type="button"
