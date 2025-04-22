@@ -1,107 +1,153 @@
-// src/app/components/CrimeMap.tsx
-"use client"; // Required for useEffect and useState
+"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react"; // Import useCallback
 
-// Ensure this environment variable is set in your .env.local or environment
-// It should point to the base URL of your Python FastAPI service
-const PYTHON_API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || "http://localhost:8000"; // Default for local dev
+const PYTHON_API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || "http://localhost:8000";
 
 interface CrimeMapProps {
-  /** The specific API path on the Python service (e.g., "/api/heatmap") */
   endpointPath: string;
-  /** Optional additional CSS classes for the container div */
   className?: string;
 }
 
 const CrimeMap: React.FC<CrimeMapProps> = ({ endpointPath, className = "" }) => {
-  const [mapHtml, setMapHtml] = useState("");
+  const [iframeKey, setIframeKey] = useState(Date.now()); // Use timestamp for initial key
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mapUrl, setMapUrl] = useState<string | undefined>(undefined); // State to hold the valid URL or undefined
 
+  // Memoize URL construction logic
+  const constructUrl = useCallback((): string | null => {
+    try {
+      if (!endpointPath) {
+        // This case should ideally be handled before calling, but good fallback
+        console.warn("CrimeMap: Endpoint path is missing.");
+        return null;
+      }
+      // Basic validation: check if endpointPath starts with '/'
+      if (!endpointPath.startsWith('/')) {
+         console.warn(`CrimeMap: endpointPath "${endpointPath}" should start with a '/'. Prepending.`);
+         endpointPath = `/${endpointPath}`;
+      }
+      return new URL(endpointPath, PYTHON_API_URL).toString();
+    } catch (err) {
+      console.error("Invalid URL construction:", err);
+      // Error state will be set in useEffect
+      return null;
+    }
+  }, [endpointPath]); // Dependency: endpointPath
+
+  // Effect to handle loading, URL construction, and errors
   useEffect(() => {
-    // Reset state when the endpointPath prop changes
     setIsLoading(true);
     setError(null);
-    setMapHtml("");
+    setMapUrl(undefined); // Clear previous URL
 
-    if (!endpointPath) {
-        console.error("CrimeMap: endpointPath prop is missing.");
-        setError("Map endpoint path is not provided.");
-        setIsLoading(false);
-        return;
+    const url = constructUrl();
+
+    if (url) {
+      setMapUrl(url);
+      // Key update can happen here or when URL is set, forcing reload if needed
+      setIframeKey(Date.now());
+    } else {
+      // If constructUrl returned null (due to error or invalid path)
+      setError("Invalid map endpoint configuration.");
+      setIsLoading(false);
     }
+    // No need to force iframe reload with key here if URL itself changes or is initially set
 
-    // Construct the full URL to fetch the map HTML
-    const mapUrl = `${PYTHON_API_URL}${endpointPath}`;
-    console.log(`Fetching map from: ${mapUrl}`); // Helpful for debugging
+  }, [endpointPath, constructUrl]); // Rerun when endpointPath changes
 
-    fetch(mapUrl)
-      .then((response) => {
-        if (!response.ok) {
-          // Handle specific errors like 503 Service Unavailable during initialization
-          if (response.status === 503) {
-              return response.json().then(errData => { // Try to get detail message
-                 throw new Error(errData.detail || "Map service is initializing. Please try again shortly.");
-              });
-          }
-          // Handle other HTTP errors
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.text(); // Get the response body as HTML text
-      })
-      .then((html) => {
-        setMapHtml(html);
-      })
-      .catch((fetchError: any) => {
-        console.error(`Error fetching crime map from ${endpointPath}:`, fetchError);
-        // Set a user-friendly error message
-        setError(fetchError.message || "Failed to load the crime map. Please check the connection or try again later.");
-      })
-      .finally(() => {
-        setIsLoading(false); // Stop loading indicator
-      });
+  const handleIframeLoad = () => {
+    // Only set loading to false if we actually expected a load (i.e., mapUrl is set)
+    if (mapUrl) {
+        setIsLoading(false);
+        setError(null); // Clear any previous error on successful load
+    }
+  };
 
-    // Re-run the effect if the endpointPath changes
-  }, [endpointPath]);
+  const handleIframeError = () => {
+    // Only set error if we were actually trying to load something
+    if (mapUrl) {
+        console.error(`Failed to load iframe source: ${mapUrl}`);
+        setIsLoading(false);
+        setError("Failed to load map content. Please check the connection or configuration.");
+        setMapUrl(undefined); // Clear the problematic URL
+    }
+  };
 
-  // --- Render loading state ---
-  if (isLoading) {
-    return (
-        <div className={`flex items-center justify-center min-h-[300px] h-full bg-gray-100 rounded ${className}`}>
-            <div className="text-center text-gray-500">
-                {/* Simple spinner */}
-                <svg className="animate-spin h-8 w-8 text-gray-400 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Loading Map...
-            </div>
-        </div>
-    );
-  }
+  const handleRetry = () => {
+    setIsLoading(true);
+    setError(null);
+    setMapUrl(undefined); // Clear URL state
 
-  // --- Render error state ---
-  if (error) {
-    return (
-        <div className={`flex flex-col items-center justify-center min-h-[300px] h-full bg-red-50 border border-red-200 rounded p-4 ${className}`}>
-            <div className="text-center text-red-600">
-                <p className="font-semibold mb-1">Error Loading Map</p>
-                <p className="text-sm">{error}</p>
-            </div>
-        </div>
-    );
-  }
+    const url = constructUrl(); // Re-attempt construction
 
-  // --- Render the fetched HTML map ---
-  // WARNING: dangerouslySetInnerHTML can be risky if the HTML source isn't trusted.
-  // Since this HTML comes from *your* backend service that you control, it's generally acceptable here.
-  // Ensure your Python service properly sanitizes any user input if it's used in generating the HTML.
+    if (url) {
+      setMapUrl(url);
+      setIframeKey(Date.now()); // Force iframe reload on retry
+    } else {
+      setError("Invalid map endpoint configuration.");
+      setIsLoading(false);
+    }
+  };
+
+
   return (
-    <div
-        className={`w-full h-full overflow-hidden ${className}`} // Ensure container has dimensions and hides overflow
-        dangerouslySetInnerHTML={{ __html: mapHtml }}
-    />
+    <div className={`relative w-full h-full min-h-[500px] ${className}`}>
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100/50 z-10">
+          <div className="text-center text-gray-500">
+            <svg
+              className="animate-spin h-8 w-8 text-gray-400 mx-auto mb-2"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Loading crime map...
+          </div>
+        </div>
+      )}
+
+      {/* Error message - Show only if not loading and error exists */}
+      {!isLoading && error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-red-50/90 z-10 p-4">
+          <div className="text-center text-red-600">
+            <p className="font-semibold mb-2">⚠️ Map Loading Error</p>
+            <p className="text-sm">{error}</p>
+            <button
+              onClick={handleRetry} // Use the dedicated retry handler
+              className="mt-3 px-4 py-2 text-sm bg-red-100 hover:bg-red-200 rounded-md transition-colors"
+            >
+              Retry Loading
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Iframe with security features - Render only if mapUrl is a valid string and no error */}
+      {mapUrl && !error && (
+        <iframe
+          key={iframeKey} // Key forces re-render when it changes
+          src={mapUrl}    // Now guaranteed to be a string
+          className="w-full h-full border-none"
+          onLoad={handleIframeLoad}
+          onError={handleIframeError}
+          title="Crime Map Visualization"
+          loading="lazy"
+          allow="geolocation"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      )}
+    </div>
   );
 };
 
