@@ -125,8 +125,8 @@ export default function AdminDashBoardPage() {
   const [errorRejected, setErrorRejected] = useState<string | null>(null);
 
   // --- State for managing the active map ---
-  type MapType = 'heatmap' | 'hotspot' | 'status';
-  const [activeMap, setActiveMap] = useState<MapType>('heatmap');
+  type MapType = 'heat' | 'hotspot' | 'status';
+  const [activeMap, setActiveMap] = useState<MapType>('heat');
 
   // --- State for map filter dropdown ---
   const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
@@ -134,7 +134,7 @@ export default function AdminDashBoardPage() {
 
   // --- Map Endpoints (remains the same) ---
   const mapEndpoints: Record<MapType, string> = {
-    heatmap: '/api/heatmap',
+    heat: '/api/heatmap',
     hotspot: '/api/hotspot-map',
     status: '/api/status-map',
   };
@@ -328,7 +328,7 @@ export default function AdminDashBoardPage() {
             {isMapFilterOpen && (
                 <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20">
                 <ul className="py-1">
-                    {(['heatmap', 'hotspot', 'status'] as MapType[]).map((mapType) => (
+                    {(['heat', 'hotspot', 'status'] as MapType[]).map((mapType) => (
                     <li key={mapType}>
                         <button
                             onClick={() => handleMapSelect(mapType)}
