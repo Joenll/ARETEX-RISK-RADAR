@@ -19,6 +19,11 @@ interface RegisterRequestBody {
   sex?: UserSex; // Add sex field
 }
 
+// --- Password Complexity Regex ---
+// Example: At least 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special character
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+const passwordRequirementsMessage = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&).";
+
 export async function POST(req: Request) {
   // --- Optional: Start a Mongoose Session for Transaction ---
   // const session = await mongoose.startSession();
@@ -39,10 +44,8 @@ export async function POST(req: Request) {
       // role is intentionally ignored from input, forced to 'user'
     }: RegisterRequestBody = await req.json();
 
-    // --- Input Validation (Basic) ---
-    // Add sex to the validation check
+    // --- Input Validation (Basic Required Fields) ---
     if (!email || !password || !firstName || !lastName || !employeeNumber || !workPosition || !birthdate || !team || !sex) {
-      // Construct a more detailed error message
       const missingFields = [
         !email && 'email',
         !password && 'password',
@@ -57,16 +60,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: `Missing required fields: ${missingFields}` }, { status: 400 });
     }
 
-    // --- Optional: Validate sex value against enum ---
+    // --- Validate sex value against enum ---
     const validSexValues: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
     if (!validSexValues.includes(sex)) {
         return NextResponse.json({ message: `Invalid value provided for sex. Must be one of: ${validSexValues.join(', ')}` }, { status: 400 });
     }
 
+    // --- NEW: Password Complexity Validation ---
+    if (!passwordRegex.test(password)) {
+        return NextResponse.json({ message: passwordRequirementsMessage }, { status: 400 });
+    }
+    // --- END: Password Complexity Validation ---
+
     // --- Check if user already exists ---
-    const existingUser = await User.findOne({ email }/*, { session }*/); // Pass session if using transactions
+    const existingUser = await User.findOne({ email }/*, { session }*/);
     if (existingUser) {
-      return NextResponse.json({ message: "User already exists with this email" }, { status: 409 }); // 409 Conflict is more specific
+      return NextResponse.json({ message: "User already exists with this email" }, { status: 409 });
     }
 
     // --- Hash password ---
@@ -76,37 +85,29 @@ export async function POST(req: Request) {
     const newUser = new User({
       email,
       password: hashedPassword,
-      role: 'user', // Force role to 'user'
-      status: 'pending', // Default status from schema, but can be explicit
-      // profile will be assigned below
+      role: 'user',
+      status: 'pending',
     });
 
     const newUserProfile = new UserProfile({
-      user: newUser._id, // Link to the user instance's ID
+      user: newUser._id,
       employeeNumber,
       workPosition,
       firstName,
       lastName,
       birthdate,
       team,
-      sex, // Add sex field here
+      sex,
     });
 
-
     // --- Assign the profile ID back to the user instance ---
-    newUser.profile = newUserProfile._id as mongoose.Types.ObjectId; // Add type assertion
+    newUser.profile = newUserProfile._id as mongoose.Types.ObjectId;
 
-
-    // --- Save documents (within transaction if using sessions) ---
-    // Use Promise.all for concurrent saving, or save sequentially if preferred
-    // If using transactions, pass the { session } option to save operations
-
+    // --- Save documents ---
     // 1. Save UserProfile
     await newUserProfile.save(/*{ session }*/);
-
-    // 2. Save User (now that profile ID is assigned)
+    // 2. Save User
     await newUser.save(/*{ session }*/);
-
 
     // --- Optional: Commit Transaction ---
     // await session.commitTransaction();
@@ -124,13 +125,10 @@ export async function POST(req: Request) {
 
     console.error("Error registering user:", error);
 
-    // Handle specific Mongoose validation errors more gracefully
     if (error instanceof mongoose.Error.ValidationError) {
-      // Extract meaningful messages from validation errors
       const messages = Object.values(error.errors).map(e => e.message);
       return NextResponse.json({ message: "Validation failed", errors: messages }, { status: 400 });
     }
-    // Handle duplicate key errors (e.g., if email check somehow failed)
     if (error.code === 11000) {
        return NextResponse.json({ message: "Duplicate key error.", field: error.keyValue }, { status: 409 });
     }
