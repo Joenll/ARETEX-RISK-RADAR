@@ -1,4 +1,3 @@
-// src/app/registration/page.tsx
 "use client";
 
 import React, { useState } from "react"; // Import React
@@ -11,7 +10,7 @@ import { UserSex } from "@/models/UserProfile"; // Adjust path if needed
 import Swal from 'sweetalert2'; // Import SweetAlert2
 
 // --- Define possible sex values for the dropdown ---
-const sexOptions: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const sexOptions: UserSex[] = ['Male', 'Female'];
 
 // --- Validation Helper Functions ---
 const isValidEmail = (email: string): boolean => {

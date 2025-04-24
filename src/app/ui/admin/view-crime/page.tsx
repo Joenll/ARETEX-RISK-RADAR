@@ -463,9 +463,11 @@ export default function CrimeReportList() {
             disabled={isLoading}
           >
              <option value="">All Statuses</option>
-            <option value="Ongoing">Ongoing</option>
             <option value="Resolved">Resolved</option>
             <option value="Pending">Pending</option>
+            <option value="Under Investigation">Under Investigation</option>
+            <option value="Closed">Closed</option>
+            <option value="Open">Open</option>
           </select>
           {/* Date Pickers */}
           <div className="react-datepicker-wrapper">

@@ -22,7 +22,7 @@ interface UserWithProfile extends Omit<IUser, 'profile' | 'password'> {
 const ITEMS_PER_PAGE = 10;
 
 // --- Define possible sex values for filtering ---
-const sexOptions: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const sexOptions: UserSex[] = ['Male', 'Female'];
 
 // --- Pagination Helper Function (Copied from view-crime) ---
 const getPaginationItems = (currentPage: number, totalPages: number, maxVisiblePages: number = 5): (number | '...')[] => {

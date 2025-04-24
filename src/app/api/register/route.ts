@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     }
 
     // --- Validate sex value against enum ---
-    const validSexValues: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
+    const validSexValues: UserSex[] = ['Male', 'Female'];
     if (!validSexValues.includes(sex)) {
         return NextResponse.json({ message: `Invalid value provided for sex. Must be one of: ${validSexValues.join(', ')}` }, { status: 400 });
     }

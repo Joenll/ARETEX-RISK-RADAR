@@ -36,7 +36,7 @@ const UserProfileSchema = new Schema<IUserProfile>(
     birthdate: { type: Date, required: true },
     sex: {
       type: String,
-      enum: ['Male', 'Female', 'Other', 'Prefer not to say'], // Define allowed values
+      enum: ['Male', 'Female'], // Define allowed values
       required: [true, 'Sex/Gender is required'],
     },
     // Renamed from department

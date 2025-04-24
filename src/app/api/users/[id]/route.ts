@@ -12,7 +12,7 @@ import mongoose from "mongoose"; // Import mongoose
 const ALLOWED_ROLES: IUser['role'][] = ['user', 'admin']; // Adjust as needed
 const ALLOWED_STATUSES: UserStatus[] = ['pending', 'approved', 'rejected'];
 // --- Define allowed sex values for validation ---
-const ALLOWED_SEX_VALUES: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const ALLOWED_SEX_VALUES: UserSex[] = ['Male', 'Female'];
 
 
 // --- GET user by ID ---
