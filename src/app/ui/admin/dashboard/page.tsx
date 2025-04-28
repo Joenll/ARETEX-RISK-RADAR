@@ -64,11 +64,14 @@ const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Ic
             {!isLoading && !error && users.length > 0 && (
                 <ul className="space-y-2">
                     {users.map(user => (
-                        <li key={user._id} className="flex justify-between items-center text-sm border-b border-gray-100 pb-1 last:border-b-0">
-                            <span className="text-gray-800 truncate pr-2">
+                        // Removed text-sm from li, apply directly to spans
+                        <li key={user._id} className="flex justify-between items-center border-b border-gray-100 pb-1 last:border-b-0">
+                            {/* --- INCREASED FONT SIZE HERE --- */}
+                            <span className="text-gray-800 truncate pr-2 text-base"> {/* Changed to text-base */}
                                 {user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.email}
                             </span>
-                            <span className="text-gray-500 text-xs flex-shrink-0">
+                            {/* --- INCREASED FONT SIZE HERE --- */}
+                            <span className="text-gray-500 text-sm flex-shrink-0"> {/* Changed from text-xs to text-sm */}
                                 {formatDate(user.createdAt)}
                             </span>
                         </li>
@@ -436,7 +439,7 @@ export default function AdminDashBoardPage() {
 
       {/* Section: User Lists & Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         <UserList title="Recent Pending Users" users={pendingUsers} isLoading={isLoadingPending} error={errorPending} emptyMessage="No pending users found." link="/ui/admin/user-management?status=pending" icon={FaUserClock} iconColor="text-yellow-600" />
+         <UserList title="Recent Pending Users"  users={pendingUsers} isLoading={isLoadingPending} error={errorPending} emptyMessage="No pending users found." link="/ui/admin/user-management?status=pending" icon={FaUserClock} iconColor="text-yellow-600" />
          <UserList title="Recent Rejected Users" users={rejectedUsers} isLoading={isLoadingRejected} error={errorRejected} emptyMessage="No rejected users found." link="/ui/admin/user-management?status=rejected" icon={FaUserTimes} iconColor="text-red-600" />
          <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full">
              <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Links</h2>
