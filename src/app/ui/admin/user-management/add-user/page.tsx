@@ -7,7 +7,7 @@ import { UserSex } from '@/models/UserProfile';
 import Swal from 'sweetalert2';
 
 // --- Define possible sex values for the dropdown ---
-const sexOptions: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const sexOptions: UserSex[] = ['Male', 'Female'];
 
 const inputFieldStyles = "block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm";
 const labelStyles = "block text-gray-700 text-sm font-bold mb-1";

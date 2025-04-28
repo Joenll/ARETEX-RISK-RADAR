@@ -1,94 +1,40 @@
-// src/app/ui/admin/dashboard/page.tsx
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-// *** ADD FaMale, FaFemale, FaQuestionCircle, FaGenderless, FaSpinner, FaCheckCircle, FaHourglassHalf icons ***
-import { FaUsers, FaFileAlt, FaUserPlus, FaUserTimes, FaUserClock, FaUserCheck, FaPlusSquare, FaFilter, FaChevronDown, FaChartLine, FaChartBar, FaMapMarkedAlt, FaMale, FaFemale, FaQuestionCircle, FaGenderless, FaSpinner, FaCheckCircle, FaHourglassHalf } from 'react-icons/fa';
-// Removed useTheme import
+// Import necessary icons
+import {
+    FaUsers, FaFileAlt, FaUserPlus, FaUserTimes, FaUserClock, FaUserCheck, FaPlusSquare,
+    FaFilter, FaChevronDown, FaChartLine, FaChartBar, FaMapMarkedAlt, FaMale, FaFemale,
+    FaQuestionCircle, FaGenderless, FaSpinner, FaCheckCircle, FaHourglassHalf,
+    FaBrain // Icon for Predictions
+} from 'react-icons/fa';
 
 // --- Import Components ---
-import PieChart from '@/app/components/PieChart'; // Assuming PieChart also had theme removed
+import PieChart from '@/app/components/PieChart';
 import CrimeMap from '@/app/components/CrimeMap';
 import LineChartReports from '@/app/components/LineChartReports';
-// Ensure the path to BarChart is correct and it's the generic version without theme
 import BarChart from '@/app/components/BarChart';
+import PredictionCharts from '@/app/components/PredictionCharts'; // <-- Import PredictionCharts
 
 // --- Define Types ---
-interface UserProfileInfo {
-  firstName: string;
-  lastName: string;
-}
-interface UserListItem {
-  _id: string;
-  email: string;
-  profile: UserProfileInfo | null;
-  createdAt: string;
-}
+interface UserProfileInfo { firstName: string; lastName: string; }
+interface UserListItem { _id: string; email: string; profile: UserProfileInfo | null; createdAt: string; }
 interface ReportDataPointYearly { year: number; count: number; }
 interface ReportDataPointMonthly { month: string; count: number; }
 interface ReportDataPointWeekly { week: string; count: number; }
-interface ReportDataPointDaily { date: string; count: number; }
 type ReportTrendData = ReportDataPointYearly[] | ReportDataPointMonthly[] | ReportDataPointWeekly[];
 type TrendType = 'yearly' | 'monthly' | 'weekly';
-interface TopLocationApiData {
-    locationName: string;
-    count: number;
-}
-interface BarChartDisplayData {
-    label: string;
-    count: number;
-}
+interface TopLocationApiData { locationName: string; count: number; }
+interface BarChartDisplayData { label: string; count: number; }
 type LocationGroupByType = 'municipality_city' | 'barangay' | 'province';
-
-// *** Type for Gender Count API response ***
-interface GenderCount {
-    gender: string | null; // Can be null/Unknown from API
-    count: number;
-}
-// *** NEW: Type for Status Count API response ***
-interface StatusCount {
-    status: string; // "Ongoing", "Pending", "Resolved", "Unknown"
-    count: number;
-}
-// Define MapType here as it's used in state
+interface GenderCount { gender: string | null; count: number; }
+interface StatusCount { status: string; count: number; }
 type MapType = 'heat' | 'hotspot' | 'status';
 
-
 // --- Helper components (UserList, formatDate) ---
-// CountCard is now replaced inline for Total Users/Reports, but kept here if needed elsewhere
-const CountCard = ({ title, count, isLoading, error, icon: Icon, colorClass }: {
-    title: string;
-    count: number | null;
-    isLoading: boolean;
-    error: string | null;
-    icon?: React.ElementType;
-    colorClass?: string;
-}) => (
-    <div className="bg-white p-4 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-center">
-        {/* Icon and Title Area */}
-        <div className="mb-4">
-            {Icon && (
-                <Icon className={`mx-auto text-4xl mb-2 ${colorClass || 'text-gray-500'}`} />
-            )}
-            <h2 className="text-lg font-semibold text-gray-700">
-                {title}
-            </h2>
-        </div>
-        {/* Count Area */}
-        <div>
-            {isLoading && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>}
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            {!isLoading && !error && count !== null && (
-                <p className={`text-5xl font-bold ${colorClass || 'text-gray-800'}`}>{count}</p>
-            )}
-            {!isLoading && !error && count === null && (
-                <p className="text-5xl font-bold text-gray-400">-</p>
-            )}
-        </div>
-    </div>
-);
 
+// UserList component
 const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Icon, iconColor }: {
     title: string;
     users: UserListItem[];
@@ -140,6 +86,7 @@ const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Ic
     </div>
 );
 
+// formatDate function
 const formatDate = (dateString: string | Date): string => {
   try {
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
@@ -171,49 +118,36 @@ export default function AdminDashBoardPage() {
   const [reportTrendData, setReportTrendData] = useState<ReportTrendData>([]);
   const [isLoadingTrend, setIsLoadingTrend] = useState(true);
   const [errorTrend, setErrorTrend] = useState<string | null>(null);
-  const [selectedTrendType, setSelectedTrendType] = useState<TrendType>('yearly');
+  const [selectedTrendType, setSelectedTrendType] = useState<TrendType>('yearly'); // Default trend type
   const [topLocationChartData, setTopLocationChartData] = useState<BarChartDisplayData[]>([]);
   const [isLoadingTopLocation, setIsLoadingTopLocation] = useState(true);
   const [errorTopLocation, setErrorTopLocation] = useState<string | null>(null);
   const [topLocationLimit, setTopLocationLimit] = useState(10);
-  const [locationGroupBy, setLocationGroupBy] = useState<LocationGroupByType>('municipality_city');
+  const [locationGroupBy, setLocationGroupBy] = useState<LocationGroupByType>('province'); // Default group by
   const [activeMap, setActiveMap] = useState<MapType>('heat');
   const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
   const mapFilterDropdownRef = useRef<HTMLDivElement>(null);
-
-  // *** State for Gender Counts ***
   const [genderCounts, setGenderCounts] = useState<GenderCount[]>([]);
   const [isLoadingGenderCounts, setIsLoadingGenderCounts] = useState(true);
   const [errorGenderCounts, setErrorGenderCounts] = useState<string | null>(null);
-
-  // *** NEW: State for Status Counts ***
   const [statusCounts, setStatusCounts] = useState<StatusCount[]>([]);
   const [isLoadingStatusCounts, setIsLoadingStatusCounts] = useState(true);
   const [errorStatusCounts, setErrorStatusCounts] = useState<string | null>(null);
 
-  // --- Map Endpoints & Legends (remain the same) ---
-  const mapEndpoints: Record<MapType, string> = {
-    heat: '/api/heatmap',
-    hotspot: '/api/hotspot-map',
-    status: '/api/status-map',
-   };
-  const statusMapLegend = [
-    { color: 'bg-red-500', label: 'Open / Ongoing' },
-    { color: 'bg-blue-500', label: 'Pending / Under Investigation' },
-    { color: 'bg-green-500', label: 'Closed / Resolved' },
-  ];
-  const heatmapLegend = [
-    { color: 'bg-blue-500', label: 'Low Risk' },
-    { color: 'bg-green-500', label: 'Moderate Risk' },
-    { color: 'bg-yellow-400', label: 'Medium Risk' },
-    { color: 'bg-red-500', label: 'High Risk' },
-    { color: 'bg-red-800', label: 'Very High Risk' },
-  ];
-  const hotspotMapLegend = [
-    { color: 'bg-red-600', label: 'Indicates areas with a higher probability of future crime incidents.' },
-  ];
+  // *** NEW: State for Top Locations Year Filter ***
+  const [selectedLocationYear, setSelectedLocationYear] = useState<string>('all'); // 'all' or year as string
+  const [availableLocationYears, setAvailableLocationYears] = useState<number[]>([]);
+  const [isLoadingLocationYears, setIsLoadingLocationYears] = useState(true); // Loading state for years
+
+  // --- Map Endpoints & Legends ---
+  const mapEndpoints: Record<MapType, string> = { heat: '/api/heatmap', hotspot: '/api/hotspot-map', status: '/api/status-map' };
+  const statusMapLegend = [ { color: 'bg-red-500', label: 'Open / Ongoing' }, { color: 'bg-blue-500', label: 'Pending / Under Investigation' }, { color: 'bg-green-500', label: 'Closed / Resolved' } ];
+  const heatmapLegend = [ { color: 'bg-blue-500', label: 'Low Risk' }, { color: 'bg-green-500', label: 'Moderate Risk' }, { color: 'bg-yellow-400', label: 'Medium Risk' }, { color: 'bg-red-500', label: 'High Risk' }, { color: 'bg-red-800', label: 'Very High Risk' } ];
+  const hotspotMapLegend = [ { color: 'bg-red-600', label: 'Indicates areas with a higher probability of future crime incidents.' } ];
 
   // --- useEffect hooks for data fetching ---
+
+  // Fetch Trend Data (Line Chart)
   useEffect(() => {
     const fetchTrendData = async () => {
       setIsLoadingTrend(true);
@@ -221,19 +155,17 @@ export default function AdminDashBoardPage() {
       setReportTrendData([]);
       const endpoint = `/api/crime-reports/stats/aggregate?groupBy=${selectedTrendType}`;
       try {
-        console.log(`Fetching trend data from: ${endpoint}`);
         const res = await fetch(endpoint);
         if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(`Failed to fetch report trend data (${res.status}): ${errorData.error || res.statusText}`);
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(`Failed to fetch trend data (${res.status}): ${errorData.error || res.statusText}`);
         }
         const data = await res.json();
-        if (Array.isArray(data)) {
-            setReportTrendData(data);
-        } else {
+        if (Array.isArray(data)) { setReportTrendData(data); }
+        else {
             console.error("Received non-array data for trend:", data);
             setReportTrendData([]);
-            throw new Error("Invalid data format received for trend chart.");
+            throw new Error("Invalid trend data format.");
         }
       } catch (err: any) {
         console.error("Error fetching trend data:", err);
@@ -244,16 +176,54 @@ export default function AdminDashBoardPage() {
     fetchTrendData();
   }, [selectedTrendType]);
 
+  // *** NEW: Fetch Available Years for Top Locations Filter ***
   useEffect(() => {
+    const fetchYears = async () => {
+        setIsLoadingLocationYears(true);
+        try {
+            // Use the aggregate endpoint to get yearly counts, then extract years
+            const res = await fetch('/api/crime-reports/stats/aggregate?groupBy=yearly');
+            if (!res.ok) {
+                throw new Error(`Failed to fetch available years (${res.status})`);
+            }
+            const yearlyData: ReportDataPointYearly[] = await res.json();
+            if (Array.isArray(yearlyData)) {
+                const years = yearlyData.map(item => item.year).sort((a, b) => b - a); // Sort descending
+                setAvailableLocationYears(years);
+            } else {
+                throw new Error("Invalid data format for years.");
+            }
+        } catch (err) {
+            console.error("Error fetching available years:", err);
+            setAvailableLocationYears([]); // Set empty on error
+        } finally {
+            setIsLoadingLocationYears(false);
+        }
+    };
+    fetchYears();
+  }, []); // Fetch only once on mount
+
+  // Fetch Top Location Data (Bar Chart) - NOW includes year filter
+  useEffect(() => {
+    // Prevent fetching if years are still loading
+    if (isLoadingLocationYears) {
+        return;
+    }
+
     const fetchTopLocationData = async () => {
         setIsLoadingTopLocation(true);
         setErrorTopLocation(null);
-        setTopLocationChartData([]);
+        setTopLocationChartData([]); // Clear previous data
 
         const params = new URLSearchParams({
             limit: String(topLocationLimit),
             groupBy: locationGroupBy,
         });
+        // *** Add year parameter if it's not 'all' ***
+        if (selectedLocationYear !== 'all') {
+            params.append('year', selectedLocationYear);
+        }
+
         const endpoint = `/api/crime-reports/stats/top-locations?${params.toString()}`;
 
         try {
@@ -283,53 +253,39 @@ export default function AdminDashBoardPage() {
             setIsLoadingTopLocation(false);
         }
     };
-    fetchTopLocationData();
-  }, [topLocationLimit, locationGroupBy]);
 
-  // *** UPDATED: useEffect for fetching counts, gender, AND status data ***
+    fetchTopLocationData();
+
+  // *** Add selectedLocationYear and isLoadingLocationYears to dependency array ***
+  }, [topLocationLimit, locationGroupBy, selectedLocationYear, isLoadingLocationYears]);
+
+  // Fetch General Dashboard Data (Counts, Lists, Gender, Status)
   useEffect(() => {
     const fetchDashboardData = async () => {
       // Reset states
-      setIsLoadingCounts(true);
-      setErrorCounts(null);
-      setIsLoadingPending(true);
-      setErrorPending(null);
-      setIsLoadingRejected(true);
-      setErrorRejected(null);
-      setIsLoadingGenderCounts(true);
-      setErrorGenderCounts(null);
-      setIsLoadingStatusCounts(true); // Reset status loading
-      setErrorStatusCounts(null);     // Reset status error
+      setIsLoadingCounts(true); setErrorCounts(null);
+      setIsLoadingPending(true); setErrorPending(null);
+      setIsLoadingRejected(true); setErrorRejected(null);
+      setIsLoadingGenderCounts(true); setErrorGenderCounts(null);
+      setIsLoadingStatusCounts(true); setErrorStatusCounts(null);
 
       try {
-        const [
-            countsResponse,
-            pendingUsersListResponse,
-            rejectedUsersListResponse,
-            genderCountsResponse,
-            statusCountsResponse, // Fetch status counts
-        ] = await Promise.all([
-          // Fetch All Counts
-          Promise.all([
-            fetch('/api/users/count').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch total user count')),
-            fetch('/api/users/count?status=approved').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch approved user count')),
-            fetch('/api/users/count?status=pending').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch pending user count')),
-            fetch('/api/users/count?status=rejected').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch rejected user count')),
-            fetch('/api/crime-reports/count').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch report count'))
+        const [ countsResponse, pendingUsersListResponse, rejectedUsersListResponse, genderCountsResponse, statusCountsResponse ] = await Promise.all([
+          Promise.all([ // Counts
+            fetch('/api/users/count').then(res => res.ok ? res.json() : Promise.reject('user count')),
+            fetch('/api/users/count?status=approved').then(res => res.ok ? res.json() : Promise.reject('approved count')),
+            fetch('/api/users/count?status=pending').then(res => res.ok ? res.json() : Promise.reject('pending count')),
+            fetch('/api/users/count?status=rejected').then(res => res.ok ? res.json() : Promise.reject('rejected count')),
+            fetch('/api/crime-reports/count').then(res => res.ok ? res.json() : Promise.reject('report count'))
           ]).catch(err => { throw new Error(`Count fetching failed: ${err}`); }),
-          // Fetch User Lists
-          fetch('/api/users?status=pending&limit=5&sort=createdAt:desc').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch pending users list')),
-          fetch('/api/users?status=rejected&limit=5&sort=createdAt:desc').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch rejected users list')),
-          // Fetch Gender Counts
-          fetch('/api/users/stats/gender-count').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch gender counts')),
-          // *** Fetch Status Counts ***
-          fetch('/api/crime-reports/stats/status-counts').then(res => res.ok ? res.json() : Promise.reject('Failed to fetch status counts')),
+          fetch('/api/users?status=pending&limit=5&sort=createdAt:desc').then(res => res.ok ? res.json() : Promise.reject('pending users list')), // Pending List
+          fetch('/api/users?status=rejected&limit=5&sort=createdAt:desc').then(res => res.ok ? res.json() : Promise.reject('rejected users list')), // Rejected List
+          fetch('/api/users/stats/gender-count').then(res => res.ok ? res.json() : Promise.reject('gender counts')), // Gender Counts
+          fetch('/api/crime-reports/stats/status-counts').then(res => res.ok ? res.json() : Promise.reject('status counts')), // Status Counts
         ]);
 
-        // Process Counts Response
-        const [
-            totalUserData, approvedUserData, pendingUserData, rejectedUserData, reportData
-        ] = countsResponse;
+        // Process Counts
+        const [ totalUserData, approvedUserData, pendingUserData, rejectedUserData, reportData ] = countsResponse;
         setTotalUserCount(totalUserData.count);
         setApprovedUserCount(approvedUserData.count);
         setPendingUserCount(pendingUserData.count);
@@ -337,53 +293,39 @@ export default function AdminDashBoardPage() {
         setReportCount(reportData.count);
         setIsLoadingCounts(false);
 
-        // Process List Responses
+        // Process Lists
         const pendingListData = Array.isArray(pendingUsersListResponse) ? pendingUsersListResponse : pendingUsersListResponse.data;
-        setPendingUsers(pendingListData || []);
-        setIsLoadingPending(false);
+        setPendingUsers(pendingListData || []); setIsLoadingPending(false);
         const rejectedListData = Array.isArray(rejectedUsersListResponse) ? rejectedUsersListResponse : rejectedUsersListResponse.data;
-        setRejectedUsers(rejectedListData || []);
-        setIsLoadingRejected(false);
+        setRejectedUsers(rejectedListData || []); setIsLoadingRejected(false);
 
-        // Process Gender Counts Response
-        if (Array.isArray(genderCountsResponse)) {
-            setGenderCounts(genderCountsResponse);
-        } else {
-            console.error("Invalid gender count data received:", genderCountsResponse);
-            setErrorGenderCounts("Invalid data format for gender counts.");
-        }
+        // Process Gender Counts
+        if (Array.isArray(genderCountsResponse)) { setGenderCounts(genderCountsResponse); }
+        else { setErrorGenderCounts("Invalid gender data."); }
         setIsLoadingGenderCounts(false);
 
-        // *** Process Status Counts Response ***
-        if (Array.isArray(statusCountsResponse)) {
-            setStatusCounts(statusCountsResponse);
-        } else {
-            console.error("Invalid status count data received:", statusCountsResponse);
-            setErrorStatusCounts("Invalid data format for status counts.");
-        }
+        // Process Status Counts
+        if (Array.isArray(statusCountsResponse)) { setStatusCounts(statusCountsResponse); }
+        else { setErrorStatusCounts("Invalid status data."); }
         setIsLoadingStatusCounts(false);
-
 
       } catch (err: any) {
         console.error("Error fetching dashboard data:", err);
-        // Update error handling to include status counts
-        if (err.message?.includes('count')) setErrorCounts(err.message);
-        if (err.message?.includes('pending users list')) setErrorPending('Failed to load list.');
-        if (err.message?.includes('rejected users list')) setErrorRejected('Failed to load list.');
-        if (err.message?.includes('gender counts')) setErrorGenderCounts('Failed to load gender data.');
-        if (err.message?.includes('status counts')) setErrorStatusCounts('Failed to load status data.'); // Add status error
-
-        // Set all loading states to false on error
-        setIsLoadingCounts(false);
-        setIsLoadingPending(false);
-        setIsLoadingRejected(false);
-        setIsLoadingGenderCounts(false);
-        setIsLoadingStatusCounts(false); // Set status loading false
+        // Simplified error setting
+        setErrorCounts('Failed to load counts.');
+        setErrorPending('Failed to load list.');
+        setErrorRejected('Failed to load list.');
+        setErrorGenderCounts('Failed to load gender data.');
+        setErrorStatusCounts('Failed to load status data.');
+        // Set all loading to false
+        setIsLoadingCounts(false); setIsLoadingPending(false); setIsLoadingRejected(false);
+        setIsLoadingGenderCounts(false); setIsLoadingStatusCounts(false);
       }
     };
     fetchDashboardData();
-  }, []); // Empty dependency array, runs once
+  }, []); // Runs once
 
+  // Click outside handler for map filter dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (mapFilterDropdownRef.current && !mapFilterDropdownRef.current.contains(event.target as Node)) {
@@ -391,35 +333,20 @@ export default function AdminDashBoardPage() {
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => { document.removeEventListener("mousedown", handleClickOutside); };
   }, [mapFilterDropdownRef]);
 
   // --- Handlers and Helpers ---
-  const handleMapSelect = (mapType: MapType) => {
-    setActiveMap(mapType);
-    setIsMapFilterOpen(false);
-   };
-  const formatMapName = (mapType: MapType) => {
-    const name = mapType.charAt(0).toUpperCase() + mapType.slice(1).replace('-', ' ');
-    return `${name} Map`;
-   };
-  const getCurrentLegend = () => {
-    switch (activeMap) {
-      case 'status':
-        return { title: "Case Status", items: statusMapLegend };
-      case 'heat':
-        return { title: "Risk Level", items: heatmapLegend };
-      case 'hotspot':
-        return { title: "Prediction", items: hotspotMapLegend };
-      default:
-        return { title: undefined, items: undefined };
-    }
-   };
+  const handleMapSelect = (mapType: MapType) => { setActiveMap(mapType); setIsMapFilterOpen(false); };
+  const formatMapName = (mapType: MapType) => { const name = mapType.charAt(0).toUpperCase() + mapType.slice(1).replace('-', ' '); return `${name} Map`; };
+  const getCurrentLegend = () => { switch (activeMap) { case 'status': return { title: "Case Status", items: statusMapLegend }; case 'heat': return { title: "Risk Level", items: heatmapLegend }; case 'hotspot': return { title: "Prediction", items: hotspotMapLegend }; default: return { title: undefined, items: undefined }; } };
   const currentLegend = getCurrentLegend();
   const handleTrendTypeChange = useCallback((type: TrendType) => { setSelectedTrendType(type); }, []);
   const handleLocationGroupByChange = useCallback((type: LocationGroupByType) => { setLocationGroupBy(type); }, []);
+  // *** NEW: Handler for Year Change ***
+  const handleLocationYearChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedLocationYear(event.target.value);
+  }, []);
 
   // --- Determine Chart Titles ---
   const lineChartTitle =
@@ -427,26 +354,29 @@ export default function AdminDashBoardPage() {
     : selectedTrendType === 'monthly' ? "Crime Reports (By Month)"
     : selectedTrendType === 'weekly' ? "Crime Reports (By Week)"
     : "Reports";
+  // Updated Bar Chart Title to include year context
   const barChartTitle = `Top ${topLocationLimit} ${
     locationGroupBy === 'barangay' ? 'Barangays'
     : locationGroupBy === 'province' ? 'Provinces'
     : 'Municipalities/Cities'
-  }`;
+  } (${selectedLocationYear === 'all' ? 'All Time' : selectedLocationYear})`; // Add year context
 
-  // *** Helper to find specific gender count ***
+  // --- Data Getters ---
   const getGenderCount = (gender: string): number | string => {
-      if (isLoadingGenderCounts) return "..."; // Loading indicator
-      if (errorGenderCounts) return "Err"; // Error indicator
-      // Find case-insensitively, handle null/undefined gender from API
-      const found = genderCounts.find(item => item.gender?.toLowerCase() === gender.toLowerCase());
+      if (isLoadingGenderCounts) return "...";
+      if (errorGenderCounts) return "Err";
+      // Handle null/undefined/empty string from API for 'Unknown'
+      const targetGender = gender.toLowerCase();
+      const found = genderCounts.find(item =>
+          (item.gender === null || item.gender === '') && targetGender === '' // Match Unknown
+          ? true
+          : item.gender?.toLowerCase() === targetGender
+      );
       return found ? found.count : 0;
   }
-
-  // *** NEW: Helper to find specific status count ***
   const getStatusCount = (status: string): number | string => {
-      if (isLoadingStatusCounts) return "..."; // Loading indicator
-      if (errorStatusCounts) return "Err"; // Error indicator
-      // Find case-insensitively
+      if (isLoadingStatusCounts) return "...";
+      if (errorStatusCounts) return "Err";
       const found = statusCounts.find(item => item.status?.toLowerCase() === status.toLowerCase());
       return found ? found.count : 0;
   }
@@ -458,188 +388,50 @@ export default function AdminDashBoardPage() {
 
       {/* Section: Top Counts & Pie Chart */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-        {/* Total Users Card (with gender breakdown) */}
-        <div className="bg-white p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
-            {/* Main Count Section */}
+        {/* Total Users Card */}
+        <div className="bg-white p-6 md:p-8 lg:p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
+            {/* Main Count */}
             <div>
-                <div className="mb-3">
-                    <FaUsers className={`mx-auto text-4xl mb-2 text-blue-600`} />
-                    <h2 className="text-lg font-semibold text-gray-700">
-                        Total Users
-                    </h2>
-                </div>
-                <div>
-                    {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>}
-                    {(errorCounts || errorGenderCounts) && !isLoadingCounts && !isLoadingGenderCounts && (
-                        <p className="text-red-500 text-sm">{errorCounts || errorGenderCounts}</p>
-                    )}
-                    {!isLoadingCounts && !errorCounts && totalUserCount !== null && (
-                        <p className={`text-5xl font-bold text-blue-600`}>{totalUserCount}</p>
-                    )}
-                    {!isLoadingCounts && !errorCounts && totalUserCount === null && (
-                        <p className="text-5xl font-bold text-gray-400">-</p>
-                    )}
-                </div>
+                <div className="mb-3"> <FaUsers className={`mx-auto text-4xl mb-2 text-blue-600`} /> <h2 className="text-lg font-semibold text-gray-700"> Total Users </h2> </div>
+                <div> {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>} {(errorCounts || errorGenderCounts) && !isLoadingCounts && !isLoadingGenderCounts && ( <p className="text-red-500 text-sm">{errorCounts || errorGenderCounts}</p> )} {!isLoadingCounts && !errorCounts && totalUserCount !== null && ( <p className={`text-5xl font-bold text-blue-600`}>{totalUserCount}</p> )} {!isLoadingCounts && !errorCounts && totalUserCount === null && ( <p className="text-5xl font-bold text-gray-400">-</p> )} </div>
             </div>
             {/* Gender Sub-Counts */}
             <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap justify-around items-center text-sm text-gray-600 gap-y-2">
-                <div className="text-center px-1 min-w-[60px]">
-                    <FaMale className="mx-auto text-xl text-blue-500 mb-1" />
-                    <span className="font-medium block text-lg">{getGenderCount('Male')}</span>
-                    <span className="block text-xs">Male</span>
-                </div>
-                <div className="text-center px-1 min-w-[60px]">
-                    <FaFemale className="mx-auto text-xl text-pink-500 mb-1" />
-                    <span className="font-medium block text-lg">{getGenderCount('Female')}</span>
-                    <span className="block text-xs">Female</span>
-                </div>
-
-            </div>
-        </div>
-
-        {/* --- UPDATED: Total Reports Card --- */}
-        <div className="bg-white p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
-             {/* Main Count Section */}
-             <div>
-                <div className="mb-3">
-                    <FaFileAlt className={`mx-auto text-4xl mb-2 text-orange-600`} />
-                    <h2 className="text-lg font-semibold text-gray-700">
-                        Total Reports
-                    </h2>
-                </div>
-                <div>
-                    {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>}
-                    {/* Display general count error OR specific status count error */}
-                    {(errorCounts || errorStatusCounts) && !isLoadingCounts && !isLoadingStatusCounts && (
-                        <p className="text-red-500 text-sm">{errorCounts || errorStatusCounts}</p>
-                    )}
-                    {!isLoadingCounts && !errorCounts && reportCount !== null && (
-                        <p className={`text-5xl font-bold text-orange-600`}>{reportCount}</p>
-                    )}
-                    {!isLoadingCounts && !errorCounts && reportCount === null && (
-                        <p className="text-5xl font-bold text-gray-400">-</p>
-                    )}
-                </div>
-            </div>
-            {/* Sub-Counts Section (Status) */}
-            <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap justify-around items-center text-sm text-gray-600 gap-y-2">
-                <div className="text-center px-1 min-w-[60px]">
-                    <FaSpinner className="mx-auto text-xl text-blue-500 mb-1 animate-spin" /> {/* Icon for Ongoing */}
-                    <span className="font-medium block text-lg">{getStatusCount('Ongoing')}</span>
-                    <span className="block text-xs">Ongoing</span>
-                </div>
-                <div className="text-center px-1 min-w-[60px]">
-                    <FaHourglassHalf className="mx-auto text-xl text-yellow-500 mb-1" /> {/* Icon for Pending */}
-                    <span className="font-medium block text-lg">{getStatusCount('Pending')}</span>
-                    <span className="block text-xs">Pending</span>
-                </div>
-                <div className="text-center px-1 min-w-[60px]">
-                    <FaCheckCircle className="mx-auto text-xl text-green-500 mb-1" /> {/* Icon for Resolved */}
-                    <span className="font-medium block text-lg">{getStatusCount('Resolved')}</span>
-                    <span className="block text-xs">Resolved</span>
-                </div>
-                 {/* Optionally show 'Unknown' if relevant and count > 0 */}
-                 { !isLoadingStatusCounts && !errorStatusCounts && typeof getStatusCount('Unknown') === 'number' && Number(getStatusCount('Unknown')) > 0 && (
-                     <div className="text-center px-1 min-w-[60px]">
-                        <FaQuestionCircle className="mx-auto text-xl text-gray-400 mb-1" />
-                        <span className="font-medium block text-lg">{getStatusCount('Unknown')}</span>
-                        <span className="block text-xs">Unknown</span>
-                    </div>
+                <div className="text-center px-1 min-w-[60px]"> <FaMale className="mx-auto text-xl text-blue-500 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Male')}</span> <span className="block text-xs">Male</span> </div>
+                <div className="text-center px-1 min-w-[60px]"> <FaFemale className="mx-auto text-xl text-pink-500 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Female')}</span> <span className="block text-xs">Female</span> </div>
+                { !isLoadingGenderCounts && !errorGenderCounts && typeof getGenderCount('Other') === 'number' && Number(getGenderCount('Other')) > 0 && (
+                     <div className="text-center px-1 min-w-[60px]"> <FaGenderless className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Other')}</span> <span className="block text-xs">Other</span> </div>
+                )}
+                 { !isLoadingGenderCounts && !errorGenderCounts && typeof getGenderCount('') === 'number' && Number(getGenderCount('')) > 0 && (
+                     <div className="text-center px-1 min-w-[60px]"> <FaQuestionCircle className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('')}</span> <span className="block text-xs">Unknown</span> </div>
                 )}
             </div>
         </div>
-        {/* --- End UPDATED Total Reports Card --- */}
+
+        {/* Total Reports Card */}
+        <div className="bg-white p-6 md:p-8 lg:p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
+             {/* Main Count */}
+             <div>
+                <div className="mb-3"> <FaFileAlt className={`mx-auto text-4xl mb-2 text-orange-600`} /> <h2 className="text-lg font-semibold text-gray-700"> Total Reports </h2> </div>
+                <div> {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>} {(errorCounts || errorStatusCounts) && !isLoadingCounts && !isLoadingStatusCounts && ( <p className="text-red-500 text-sm">{errorCounts || errorStatusCounts}</p> )} {!isLoadingCounts && !errorCounts && reportCount !== null && ( <p className={`text-5xl font-bold text-orange-600`}>{reportCount}</p> )} {!isLoadingCounts && !errorCounts && reportCount === null && ( <p className="text-5xl font-bold text-gray-400">-</p> )} </div>
+            </div>
+            {/* Status Sub-Counts */}
+            <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap justify-around items-center text-sm text-gray-600 gap-y-2">
+                <div className="text-center px-1 min-w-[60px]"> <FaSpinner className="mx-auto text-xl text-blue-500 mb-1 animate-spin" /> <span className="font-medium block text-lg">{getStatusCount('Ongoing')}</span> <span className="block text-xs">Ongoing</span> </div>
+                <div className="text-center px-1 min-w-[60px]"> <FaHourglassHalf className="mx-auto text-xl text-yellow-500 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Pending')}</span> <span className="block text-xs">Pending</span> </div>
+                <div className="text-center px-1 min-w-[60px]"> <FaCheckCircle className="mx-auto text-xl text-green-500 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Resolved')}</span> <span className="block text-xs">Resolved</span> </div>
+                 { !isLoadingStatusCounts && !errorStatusCounts && typeof getStatusCount('Unknown') === 'number' && Number(getStatusCount('Unknown')) > 0 && (
+                     <div className="text-center px-1 min-w-[60px]"> <FaQuestionCircle className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Unknown')}</span> <span className="block text-xs">Unknown</span> </div>
+                )}
+            </div>
+        </div>
 
         {/* Pie Chart */}
         <div className="md:col-span-2 lg:col-span-1">
-            <PieChart
-                approvedCount={approvedUserCount}
-                pendingCount={pendingUserCount}
-                rejectedCount={rejectedUserCount}
-                isLoading={isLoadingCounts}
-                error={errorCounts ? 'Error loading chart data' : null}
-            />
+            <PieChart approvedCount={approvedUserCount} pendingCount={pendingUserCount} rejectedCount={rejectedUserCount} isLoading={isLoadingCounts} error={errorCounts ? 'Error loading chart data' : null} />
         </div>
       </div>
 
-     {/* --- Section: Line Chart & Bar Chart Side-by-Side --- */}
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Line Chart Container */}
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-gray-700 mb-2 sm:mb-0 flex items-center">
-                    <FaChartLine className="mr-2 text-indigo-600" />
-                    {lineChartTitle}
-                </h2>
-                <div className="flex justify-center space-x-2">
-                    {(['yearly', 'monthly', 'weekly'] as TrendType[]).map((type) => (
-                        <button
-                        key={type}
-                        onClick={() => handleTrendTypeChange(type)}
-                        className={`px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors ${
-                            selectedTrendType === type
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                        >
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            {/* Chart Area */}
-            <div className="relative h-96 flex-grow">
-                <LineChartReports data={reportTrendData} isLoading={isLoadingTrend} error={errorTrend} dataType={selectedTrendType} />
-            </div>
-        </div>
-        {/* Bar Chart Container */}
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-             {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-gray-700 mb-2 sm:mb-0 flex items-center">
-                    <FaMapMarkedAlt className="mr-2 text-teal-600" />
-                    {barChartTitle}
-                </h2>
-                 {/* Group By Buttons */}
-                <div className="flex justify-center space-x-2">
-                    {(['province','municipality_city', 'barangay'] as LocationGroupByType[]).map((type) => (
-                        <button
-                        key={type}
-                        onClick={() => handleLocationGroupByChange(type)}
-                        className={`px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors ${
-                            locationGroupBy === type
-                            ? 'bg-teal-600 text-white shadow-sm'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                        >
-                        {type === 'municipality_city' ? 'City/Municipality'
-                         : type === 'province' ? 'Province'
-                         : 'Barangay'}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            {/* Chart Area */}
-            <div className="relative h-96 flex-grow">
-                {isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading Chart...</div>}
-                {errorTopLocation && <div className="absolute inset-0 flex items-center justify-center text-red-500 p-4 text-center">Error: {errorTopLocation}</div>}
-                {!isLoadingTopLocation && !errorTopLocation && (
-                    <BarChart
-                        data={topLocationChartData}
-                        yAxisLabel="Number of Reports"
-                        xAxisLabel={
-                            locationGroupBy === 'barangay' ? 'Barangay'
-                            : locationGroupBy === 'province' ? 'Province'
-                            : 'Municipality/City'
-                        }
-                        datasetLabel="Reports"
-                    />
-                )}
-            </div>
-        </div>
-    </div> {/* End of Charts Grid */}
 
 
       {/* Section: User Lists & Quick Links */}
@@ -657,7 +449,136 @@ export default function AdminDashBoardPage() {
          </div>
       </div>
 
+
+     {/* --- Section: Line Chart & Bar Chart Side-by-Side --- */}
+
+     <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Report Charts</h1>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Line Chart Container */}
+        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-gray-700 mb-2 sm:mb-0 flex items-center"> <FaChartLine className="mr-2 text-indigo-600" /> {lineChartTitle} </h2>
+                <div className="flex justify-center space-x-1 sm:space-x-2"> {/* Reduced space on small screens */}
+                    {(['yearly', 'monthly', 'weekly'] as TrendType[]).map((type) => (
+                        <button key={type} onClick={() => handleTrendTypeChange(type)} disabled={isLoadingTrend} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ selectedTrendType === type ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} > {type.charAt(0).toUpperCase() + type.slice(1)} </button>
+                    ))}
+                </div>
+            </div>
+            {/* Chart Area */}
+            <div className="relative h-96 flex-grow">
+                <LineChartReports data={reportTrendData} isLoading={isLoadingTrend} error={errorTrend} dataType={selectedTrendType} />
+            </div>
+        </div>
+
+        {/* Bar Chart Container */}
+        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+             {/* Header with GroupBy and NEW Year Selector */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0 gap-2">
+                {/* Title - *** FIXED: Removed flex-shrink-0 *** */}
+                <h2 className="text-lg font-semibold text-gray-700 flex items-center mr-2"> {/* Allow title to shrink, removed explicit margin */}
+                    <FaChartBar className="mr-2 text-teal-600" /> {/* Changed Icon */}
+                    {barChartTitle}
+                </h2>
+                 {/* Filters Wrapper */}
+                <div className="flex flex-wrap justify-end items-center gap-2">
+                    {/* Group By Buttons */}
+                    <div className="flex justify-center space-x-1 sm:space-x-2">
+                        {(['province','municipality_city', 'barangay'] as LocationGroupByType[]).map((type) => (
+                            <button key={type} onClick={() => handleLocationGroupByChange(type)} disabled={isLoadingTopLocation} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ locationGroupBy === type ? 'bg-teal-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} >
+                                {type === 'municipality_city' ? 'City/Mun' : type === 'province' ? 'Province' : 'Brgy'} {/* Shortened labels */}
+                            </button>
+                        ))}
+                    </div>
+                     {/* *** NEW: Year Selector Dropdown *** */}
+                     <div className="flex-shrink-0 text-black"> {/* Keep dropdown from shrinking */}
+                        <label htmlFor="locationYearSelect" className="sr-only">Select Year</label> {/* Screen reader label */}
+                        <select
+                            id="locationYearSelect"
+                            value={selectedLocationYear}
+                            onChange={handleLocationYearChange}
+                            disabled={isLoadingTopLocation || isLoadingLocationYears || availableLocationYears.length === 0}
+                            className="block w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-xs sm:text-sm disabled:opacity-50"
+                        >
+                            <option value="all">All Time</option>
+                            {availableLocationYears.map(year => (
+                                <option key={year} value={year.toString()}>
+                                    {year}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            {/* Chart Area */}
+            <div className="relative h-96 flex-grow">
+                {/* Display loading only if top locations are loading */}
+                {isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading Chart...</div>}
+                {/* Display error if there's a top location error */}
+                {errorTopLocation && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-red-500 p-4 text-center">Error: {errorTopLocation}</div>}
+                {/* Render chart when not loading and no error */}
+                {!isLoadingTopLocation && !errorTopLocation && (
+                    <BarChart
+                        data={topLocationChartData}
+                        yAxisLabel="Number of Reports"
+                        xAxisLabel={ locationGroupBy === 'barangay' ? 'Barangay' : locationGroupBy === 'province' ? 'Province' : 'Municipality/City' }
+                        // Make dataset label dynamic based on year
+                        datasetLabel={`Reports (${selectedLocationYear === 'all' ? 'All Time' : selectedLocationYear})`}
+                    />
+                )}
+                 {/* Optional: Show message if years failed to load */}
+                 {isLoadingLocationYears && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">Loading available years...</div>}
+            </div>
+        </div>
+    </div> {/* End of Charts Grid */}
+
+
+
+
+{/* ---  Section: Predictions --- */}
+<h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Crime Predictions</h1>
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+  {/* Crime Trend Forecast */}
+  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+    <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+      <FaBrain className="mr-2 text-purple-600" /> {/* Prediction Icon */}
+      Crime Trend Forecast
+    </h2>
+    {/* Container for the chart iframe */}
+    {/* Increased height and removed overflow-hidden */}
+    <div className="relative h-[550px] flex-grow">
+      <PredictionCharts
+        endpointPath="/api/forecast/crime-trend" // Endpoint from Python API
+        title="Crime Trend Forecast Chart"
+        className="w-full h-full" // Ensure it fills the container
+      />
+    </div>
+  </div>
+
+  {/* Top Locations Forecast */}
+  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+    <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+       <FaBrain className="mr-2 text-purple-600" /> {/* Prediction Icon */}
+       Top Predicted Locations
+    </h2>
+     {/* Container for the chart iframe */}
+     {/* Increased height */}
+     <div className="relative h-[500px] flex-grow">
+      <PredictionCharts
+        endpointPath="/api/forecast/top-locations" // Endpoint from Python API
+        title="Top Predicted Locations Chart"
+        className="w-full h-full" // Ensure it fills the container
+      />
+    </div>
+  </div>
+
+</div> {/* End of Predictions Grid */}
+
+
       {/* Section: Crime Map Visualizations */}
+
+      <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Geospatial Analysis</h1>
       <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
         {/* Map Filter Dropdown */}
         <div className="relative mb-4 flex justify-start" ref={mapFilterDropdownRef}>
@@ -667,7 +588,7 @@ export default function AdminDashBoardPage() {
          {/* Inner Map Container */}
          <div className="bg-gray-50 p-4 rounded-lg">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Crime Map: {formatMapName(activeMap)}</h2>
-            <div className="w-full h-[500px] md:h-[600px] bg-white rounded-lg overflow-hidden shadow-inner">
+            <div className="w-full h-[500px] md:h-[650px] bg-white rounded-lg overflow-hidden shadow-inner">
               <CrimeMap key={activeMap} endpointPath={mapEndpoints[activeMap]} className="w-full h-full" legendTitle={currentLegend.title} legendItems={currentLegend.items} />
             </div>
         </div>

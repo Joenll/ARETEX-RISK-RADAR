@@ -5,14 +5,12 @@ import Location from "@/models/location"; // Your Location model
 import mongoose from "mongoose";
 import { requireRole } from "@/middleware/authMiddleware"; // Keep authentication
 
-// --- UPDATED: Define valid grouping fields ---
-type GroupByField = 'municipality_city' | 'barangay' | 'province'; // Added 'province'
-const ALLOWED_GROUP_BY: GroupByField[] = ['municipality_city', 'barangay', 'province']; // Added 'province'
+type GroupByField = 'municipality_city' | 'barangay' | 'province';
+const ALLOWED_GROUP_BY: GroupByField[] = ['municipality_city', 'barangay', 'province'];
 
 export async function GET(req: NextRequest) {
     await connectDB();
 
-    // --- Authentication ---
     const roleCheck = await requireRole(req, ["admin"]);
     if (roleCheck) return roleCheck;
 
@@ -20,42 +18,56 @@ export async function GET(req: NextRequest) {
         const { searchParams } = req.nextUrl;
 
         // --- Parameters ---
-        const startDate = searchParams.get("start_date");
-        const endDate = searchParams.get("end_date");
-        const limitParam = searchParams.get("limit") || "10"; // Default to top 10
+        const limitParam = searchParams.get("limit") || "10";
         const groupByParam = searchParams.get("groupBy") as GroupByField | null;
+        const yearParam = searchParams.get("year"); // <-- Get the year parameter
 
-        // --- UPDATED: Validate and set the grouping field ---
+        // --- Validate GroupBy ---
         let groupByField: GroupByField = 'municipality_city'; // Default
-        if (groupByParam && ALLOWED_GROUP_BY.includes(groupByParam)) { // Check against updated array
+        if (groupByParam && ALLOWED_GROUP_BY.includes(groupByParam)) {
             groupByField = groupByParam;
         } else if (groupByParam) {
-            // If a groupBy param was provided but it's invalid
             return NextResponse.json(
-                // Updated error message
                 { error: `Invalid 'groupBy' parameter. Allowed values are: ${ALLOWED_GROUP_BY.join(', ')}.` },
                 { status: 400 }
             );
         }
         console.log(`Grouping by: ${groupByField}`);
 
-        // --- Build the initial $match stage for filtering CrimeReports ---
-        const matchStage: mongoose.FilterQuery<any> = {};
-
-        // Date range filter (logic remains the same)
-        if (startDate || endDate) {
-            matchStage.date = {};
-            if (startDate) { /* ... */ }
-            if (endDate) { /* ... */ }
-            if (matchStage.date && Object.keys(matchStage.date).length === 0) {
-                delete matchStage.date;
+        // --- Validate Year ---
+        let selectedYear: number | null = null;
+        if (yearParam) {
+            const parsedYear = parseInt(yearParam, 10);
+            if (!isNaN(parsedYear) && parsedYear > 1900 && parsedYear < 2100) {
+                selectedYear = parsedYear;
+                console.log(`Filtering by year: ${selectedYear}`);
+            } else {
+                console.warn(`Invalid 'year' parameter received: ${yearParam}. Ignoring.`);
+                // Optional: Return error for invalid year format
+                // return NextResponse.json({ error: "Invalid 'year' parameter format." }, { status: 400 });
             }
         }
-        // --- End Filter Building ---
 
-        // --- Aggregation Pipeline (The pipeline itself handles the dynamic field) ---
+        // --- Build the initial $match stage ---
+        const matchStage: mongoose.FilterQuery<any> = {};
+
+        // --- Add Year Filter to $match stage ---
+        if (selectedYear) {
+            // Assuming 'date' field in CrimeReport is a Date object
+            // Use UTC to avoid timezone issues when comparing dates
+            const startDate = new Date(Date.UTC(selectedYear, 0, 1, 0, 0, 0)); // Jan 1st, 00:00:00 UTC
+            const endDate = new Date(Date.UTC(selectedYear + 1, 0, 1, 0, 0, 0)); // Jan 1st of next year, 00:00:00 UTC
+
+            matchStage.date = {
+                $gte: startDate, // Greater than or equal to the start of the year
+                $lt: endDate     // Less than the start of the next year
+            };
+        }
+        // --- End Year Filter ---
+
+        // --- Aggregation Pipeline ---
         const pipeline: mongoose.PipelineStage[] = [
-            // 1. Initial Match (e.g., date)
+            // 1. Initial Match (includes year filter if provided)
             { $match: matchStage },
 
             // 2. Lookup Location
@@ -67,43 +79,36 @@ export async function GET(req: NextRequest) {
                     as: "locationDetails"
                 }
             },
-
             // 3. Unwind Location Details
             {
                 $unwind: {
                     path: "$locationDetails",
-                    preserveNullAndEmptyArrays: true
+                    preserveNullAndEmptyArrays: true // Keep reports even if location lookup fails (adjust if needed)
                 }
             },
-
             // 4. Filter out docs with missing/invalid location or grouping field
-            // This stage now correctly handles 'province' if it exists in the Location schema
             {
                 $match: {
-                    [`locationDetails.${groupByField}`]: { $exists: true, $ne: null },
-                    $expr: { $ne: [`$locationDetails.${groupByField}`, ""] }
+                    // Ensure the specific grouping field exists and is not null/empty
+                    [`locationDetails.${groupByField}`]: { $exists: true, $ne: null, $ne: "" }
                 }
             },
-
             // 5. Group by the specified location field
             {
                 $group: {
-                    _id: `$locationDetails.${groupByField}`, // Correctly uses 'province' if passed
+                    _id: `$locationDetails.${groupByField}`,
                     count: { $sum: 1 }
                 }
             },
-
             // 6. Sort by count descending
             { $sort: { count: -1 } },
-
             // 7. Limit the results
             { $limit: parseInt(limitParam, 10) },
-
             // 8. Project the final output shape
             {
                 $project: {
                     _id: 0,
-                    locationName: "$_id",
+                    locationName: "$_id", // Rename _id to locationName
                     count: 1
                 }
             }
@@ -112,10 +117,9 @@ export async function GET(req: NextRequest) {
 
         console.log("Executing Top Locations Pipeline:", JSON.stringify(pipeline, null, 2));
 
-        // Execute the aggregation pipeline
         const topLocations = await CrimeReport.aggregate(pipeline);
 
-        console.log(`Found ${topLocations.length} aggregated top locations.`);
+        console.log(`Found ${topLocations.length} aggregated top locations (Year: ${selectedYear ?? 'All'}).`);
 
         return NextResponse.json(topLocations, { status: 200 });
 

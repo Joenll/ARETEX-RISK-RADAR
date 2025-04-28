@@ -1,4 +1,3 @@
-// src/app/components/LineChartReports.tsx
 "use client";
 
 import React, { useMemo, useEffect } from 'react';

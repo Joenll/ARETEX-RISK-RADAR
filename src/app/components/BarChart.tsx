@@ -11,7 +11,9 @@ import {
     Tooltip,
     Legend,
     ChartOptions,
-    ChartData
+    ChartData,
+    // Import TooltipItem if needed for complex callbacks, though not used here currently
+    // TooltipItem
 } from 'chart.js';
 
 // Register necessary Chart.js components
@@ -26,31 +28,22 @@ ChartJS.register(
 
 // Define a generic structure for input data items
 interface BarChartDataItem {
-    /** The label for the bar (e.g., category name, location name) */
     label: string;
-    /** The numerical value for the bar */
     count: number;
-    /** Optional extra data */
     [key: string]: any;
 }
 
-// Define the props for the BarChart component (theme prop removed)
+// Define the props for the BarChart component
 interface BarChartProps {
-    /** The data array for the chart, expecting objects with 'label' and 'count' */
     data: BarChartDataItem[];
-    /** Optional title displayed above the chart */
     title?: string;
-    /** Optional CSS class name for the container div */
     className?: string;
-    /** Optional label for the Y-axis */
     yAxisLabel?: string;
-    /** Optional label for the X-axis */
     xAxisLabel?: string;
-    /** Optional label for the dataset (used in tooltips) */
     datasetLabel?: string;
 }
 
-// Define default colors (based on previous light theme)
+// Define default colors
 const defaultColors = {
     primaryBgColor: '59, 130, 246',   // blue-500 RGB
     primaryBorderColor: '59, 130, 246',
@@ -63,7 +56,6 @@ const defaultColors = {
 
 const BarChart: React.FC<BarChartProps> = ({
     data = [],
-    // theme prop removed
     title,
     className = '',
     yAxisLabel = 'Count',
@@ -71,9 +63,7 @@ const BarChart: React.FC<BarChartProps> = ({
     datasetLabel = 'Total Count'
 }) => {
 
-    // Removed theme selection logic, using defaultColors directly
-
-    // Memoize chart data and options
+    // Memoize chart data
     const chartData = useMemo<ChartData<'bar'>>(() => {
         const labels = data.map(item => item.label);
         const counts = data.map(item => item.count);
@@ -84,48 +74,57 @@ const BarChart: React.FC<BarChartProps> = ({
                 {
                     label: datasetLabel,
                     data: counts,
-                    // Use default colors directly
                     backgroundColor: `rgba(${defaultColors.primaryBgColor}, 0.6)`,
                     borderColor: `rgb(${defaultColors.primaryBorderColor})`,
                     borderWidth: 1,
-                    borderRadius: 6,
+                    borderRadius: 4, // Slightly smaller radius
                     borderSkipped: false,
+                    // Optional: Add hover styles if desired
+                    // hoverBackgroundColor: `rgba(${defaultColors.primaryBgColor}, 0.8)`,
+                    // hoverBorderColor: `rgb(${defaultColors.primaryBorderColor})`,
                 },
             ],
         };
-    // Removed colors from dependency array
     }, [data, datasetLabel]);
 
+    // Memoize chart options
     const chartOptions = useMemo<ChartOptions<'bar'>>(() => {
+        // --- Optional: Dynamic Y-axis calculation ---
+        const maxCount = chartData.datasets[0]?.data
+            ? Math.max(0, ...(chartData.datasets[0].data as number[]))
+            : 0;
+        // Ensure max is at least 5, add some padding (e.g., 10%)
+        const yAxisMax = Math.max(5, Math.ceil(maxCount * 1.1));
+        // Calculate a reasonable step size, aiming for ~5-6 ticks
+        const yStepSize = Math.max(1, Math.ceil(yAxisMax / 6));
+        // --- End Optional ---
+
         return {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: false, // Crucial for flexible height
             plugins: {
                 legend: {
-                    display: false,
+                    display: false, // Often legend is not needed for single dataset bar charts
                 },
                 title: {
                     display: !!title,
                     text: title,
                     padding: { bottom: 15 },
-                    font: { size: 16, weight: 600 },
-                    // Use default colors directly
+                    font: { size: 16, weight: 600 }, // Use number for weight
                     color: `rgb(${defaultColors.tickColor})`
                 },
                 tooltip: {
-                    // Use default colors directly
-                    backgroundColor: `rgb(${defaultColors.tooltipBgColor})`,
+                    backgroundColor: `rgba(${defaultColors.tooltipBgColor}, 0.85)`, // Slightly transparent
                     titleColor: `rgb(${defaultColors.tooltipTextColor})`,
                     bodyColor: `rgb(${defaultColors.tooltipTextColor})`,
-                    boxPadding: 5,
-                    padding: 10,
+                    boxPadding: 4,
+                    padding: 8,
                     cornerRadius: 4,
+                    usePointStyle: true, // Use point style in tooltip
                     callbacks: {
+                        // Keep label callback simple for single dataset
                         label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) { label += ': '; }
-                            if (context.parsed.y !== null) { label += context.parsed.y; }
-                            return label;
+                            return `${context.dataset.label}: ${context.formattedValue}`;
                         }
                     }
                 },
@@ -134,63 +133,78 @@ const BarChart: React.FC<BarChartProps> = ({
                 y: {
                     beginAtZero: true,
                     grid: {
-                        // Use default colors directly
-                        color: `rgba(${defaultColors.gridColor}, 0.3)`,
+                        color: `rgba(${defaultColors.gridColor}, 0.5)`, // Slightly more visible grid
                         drawBorder: false,
                     },
                     ticks: {
-                        // Use default colors directly
                         color: `rgb(${defaultColors.tickColor})`,
                         precision: 0,
+                        // --- Optional: Use dynamic step size ---
+                        stepSize: yStepSize,
+                        // --- End Optional ---
+                        // Optional: Add padding so highest bar doesn't touch top edge
+                        // padding: 10,
                     },
                     title: {
                          display: !!yAxisLabel,
                          text: yAxisLabel,
-                         // Use default colors directly
                          color: `rgb(${defaultColors.tickColor})`,
-                         font: { size: 14 }
-                    }
+                         font: { size: 12, weight: 'normal' } // Add valid weight
+                    },
+                    // --- Optional: Use dynamic max ---
+                    max: yAxisMax,
+                    // --- End Optional ---
                 },
                 x: {
                     grid: {
-                        display: false,
-                        drawBorder: false,
+                        display: false, // Keep x grid lines off
                     },
                     ticks: {
-                        // Use default colors directly
                         color: `rgb(${defaultColors.tickColor})`,
-                        maxRotation: 45,
+                        maxRotation: 45, // Allow rotation
                         minRotation: 0,
-                        autoSkip: true,
-                        maxTicksLimit: 15
+                        autoSkip: true, // Skip labels if too crowded
+                        maxTicksLimit: 15, // Limit ticks for readability
+                        padding: 5, // Add some padding below labels
                     },
                      title: {
                          display: !!xAxisLabel,
                          text: xAxisLabel,
-                         // Use default colors directly
                          color: `rgb(${defaultColors.tickColor})`,
-                         font: { size: 14 }
+                         font: { size: 12 } // Slightly smaller axis title
                     }
                 },
             },
+            // Optional: Improve hover interaction
+            interaction: {
+                mode: 'index', // Show tooltip for the bar at the hovered index
+                intersect: false, // Tooltip appears even if not directly hovering the bar center
+            },
+
+             animation: {
+                 duration: 400,
+                 easing: 'easeOutQuad',
+             },
         };
-    // Removed colors from dependency array
-    }, [title, yAxisLabel, xAxisLabel, datasetLabel]);
+    // Include dependencies for dynamic calculations if added
+    }, [title, yAxisLabel, xAxisLabel, datasetLabel, chartData.datasets]);
 
     // Display a message if there's no data
     if (!data || data.length === 0) {
-        // Removed dark mode class
         return (
-            <div className={`flex items-center justify-center h-80 text-gray-500 ${className}`}>
+            // Ensure this container also respects the parent's height context
+            <div className={`flex items-center justify-center h-full text-gray-500 ${className}`}>
                 No data available to display.
             </div>
         );
     }
 
-    // Container div structure remains the same
     return (
-        <div className={`relative h-96 w-full ${className}`}>
-            <Bar options={chartOptions} data={chartData} />
+        <div className={`relative w-full flex flex-col h-full ${className}`}>
+            {/* Chart Container - flex-grow allows it to take available vertical space */}
+            <div className="relative flex-grow min-h-0">
+                <Bar options={chartOptions} data={chartData} />
+            </div>
         </div>
     );
 };
