@@ -12,18 +12,21 @@ import {
     Legend,
     ChartOptions,
     ChartData,
-    // Import TooltipItem if needed for complex callbacks, though not used here currently
+    // --- NEW: Import TooltipItem if needed for complex tooltip callbacks ---
     // TooltipItem
 } from 'chart.js';
+// --- NEW: Import datalabels plugin ---
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
-// Register necessary Chart.js components
+// Register necessary Chart.js components AND the datalabels plugin
 ChartJS.register(
     CategoryScale,
     LinearScale,
     BarElement,
     Title,
     Tooltip,
-    Legend
+    Legend,
+    ChartDataLabels // Register the plugin
 );
 
 // Define a generic structure for input data items
@@ -43,14 +46,18 @@ interface BarChartProps {
     datasetLabel?: string;
 }
 
+
 // Define default colors
 const defaultColors = {
-    primaryBgColor: '59, 130, 246',   // blue-500 RGB
-    primaryBorderColor: '59, 130, 246',
-    gridColor: '229, 231, 235',  // gray-200 RGB
-    tickColor: '55, 65, 81',    // gray-700 RGB
-    tooltipBgColor: '17, 24, 39',    // gray-900 RGB
-    tooltipTextColor: '249, 250, 251',// gray-50 RGB
+    primaryBgColorLight: '255, 165, 0',   // Orange RGB
+    primaryBgColorDark: '204, 82, 0',     // Darker Orange RGB
+    primaryBorderColor: '255, 165, 0',   // Orange RGB
+    gridColor: '229, 231, 235',          // gray-200 RGB
+    tickColor: '55, 65, 81',             // gray-700 RGB
+    tooltipBgColor: '17, 24, 39',         // gray-900 RGB
+    tooltipTextColor: '249, 250, 251',   // gray-50 RGB
+    // --- NEW: Color for data labels inside bars ---
+    dataLabelColor: 'rgb(31, 41, 55)', // Dark Gray (gray-800)
 };
 
 
@@ -63,7 +70,7 @@ const BarChart: React.FC<BarChartProps> = ({
     datasetLabel = 'Total Count'
 }) => {
 
-    // Memoize chart data
+    // Memoize chart data (remains the same)
     const chartData = useMemo<ChartData<'bar'>>(() => {
         const labels = data.map(item => item.label);
         const counts = data.map(item => item.count);
@@ -74,14 +81,24 @@ const BarChart: React.FC<BarChartProps> = ({
                 {
                     label: datasetLabel,
                     data: counts,
-                    backgroundColor: `rgba(${defaultColors.primaryBgColor}, 0.6)`,
+                    backgroundColor: (context) => {
+                      const chart = context.chart;
+                      const { ctx, chartArea } = chart;
+
+                      if (!chartArea) {
+                        return `rgba(${defaultColors.primaryBgColorLight}, 0.7)`; // Slightly more opaque fallback
+                      }
+
+                      const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                      // Use slightly more opaque colors for better label contrast
+                      gradient.addColorStop(0, `rgba(${defaultColors.primaryBgColorLight}, 0.7)`);
+                      gradient.addColorStop(1, `rgba(${defaultColors.primaryBgColorDark}, 0.7)`);
+                      return gradient;
+                    },
                     borderColor: `rgb(${defaultColors.primaryBorderColor})`,
                     borderWidth: 1,
-                    borderRadius: 4, // Slightly smaller radius
+                    borderRadius: 10,
                     borderSkipped: false,
-                    // Optional: Add hover styles if desired
-                    // hoverBackgroundColor: `rgba(${defaultColors.primaryBgColor}, 0.8)`,
-                    // hoverBorderColor: `rgb(${defaultColors.primaryBorderColor})`,
                 },
             ],
         };
@@ -89,22 +106,19 @@ const BarChart: React.FC<BarChartProps> = ({
 
     // Memoize chart options
     const chartOptions = useMemo<ChartOptions<'bar'>>(() => {
-        // --- Optional: Dynamic Y-axis calculation ---
+        // Dynamic Y-axis calculation (remains the same)
         const maxCount = chartData.datasets[0]?.data
             ? Math.max(0, ...(chartData.datasets[0].data as number[]))
             : 0;
-        // Ensure max is at least 5, add some padding (e.g., 10%)
         const yAxisMax = Math.max(5, Math.ceil(maxCount * 1.1));
-        // Calculate a reasonable step size, aiming for ~5-6 ticks
         const yStepSize = Math.max(1, Math.ceil(yAxisMax / 6));
-        // --- End Optional ---
 
         return {
             responsive: true,
-            maintainAspectRatio: false, // Crucial for flexible height
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: false, // Often legend is not needed for single dataset bar charts
+                    display: false,
                 },
                 title: {
                     display: !!title,
@@ -114,94 +128,112 @@ const BarChart: React.FC<BarChartProps> = ({
                     color: `rgb(${defaultColors.tickColor})`
                 },
                 tooltip: {
-                    backgroundColor: `rgba(${defaultColors.tooltipBgColor}, 0.85)`, // Slightly transparent
+                    // Tooltip config remains the same
+                    backgroundColor: `rgba(${defaultColors.tooltipBgColor}, 0.85)`,
                     titleColor: `rgb(${defaultColors.tooltipTextColor})`,
                     bodyColor: `rgb(${defaultColors.tooltipTextColor})`,
                     boxPadding: 4,
                     padding: 8,
                     cornerRadius: 4,
-                    usePointStyle: true, // Use point style in tooltip
+                    usePointStyle: true,
                     callbacks: {
-                        // Keep label callback simple for single dataset
                         label: function(context) {
+                            // Use context.formattedValue which is already localized/formatted
                             return `${context.dataset.label}: ${context.formattedValue}`;
                         }
                     }
                 },
+                // --- NEW: Datalabels Configuration ---
+                datalabels: {
+                    display: (context) => {
+                        // Only display label if value is > 0
+                        const value = context.dataset.data[context.dataIndex] as number;
+                        return value > 0;
+                    },
+                    formatter: (value, context) => {
+                        // Display the raw value (count)
+                        return `${value}`;
+                    },
+                    color: defaultColors.dataLabelColor, // Use the new dark color
+                    anchor: 'center', // Position the label in the center of the bar
+                    align: 'center', // Align the text centrally
+                    font: {
+                        weight: 'bold',
+                        size: 13, // Adjust size as needed
+                    },
+                    // Optional: Add padding if needed
+                    // padding: 4,
+                    // Optional: Rotate label if bars are narrow
+                    // rotation: -90
+                }
+                // --- End Datalabels ---
             },
             scales: {
+                // Scales config remains the same
                 y: {
                     beginAtZero: true,
                     grid: {
-                        color: `rgba(${defaultColors.gridColor}, 0.5)`, // Slightly more visible grid
+                        color: `rgba(${defaultColors.gridColor}, 0.5)`,
                         drawBorder: false,
                     },
                     ticks: {
                         color: `rgb(${defaultColors.tickColor})`,
                         precision: 0,
-                        // --- Optional: Use dynamic step size ---
                         stepSize: yStepSize,
-                        // --- End Optional ---
-                        // Optional: Add padding so highest bar doesn't touch top edge
-                        // padding: 10,
                     },
                     title: {
                          display: !!yAxisLabel,
                          text: yAxisLabel,
                          color: `rgb(${defaultColors.tickColor})`,
-                         font: { size: 12, weight: 'normal' } // Add valid weight
+                         font: { size: 12, weight: 'normal' }
                     },
-                    // --- Optional: Use dynamic max ---
                     max: yAxisMax,
-                    // --- End Optional ---
                 },
                 x: {
                     grid: {
-                        display: false, // Keep x grid lines off
+                        display: false,
                     },
                     ticks: {
                         color: `rgb(${defaultColors.tickColor})`,
-                        maxRotation: 45, // Allow rotation
+                        maxRotation: 45,
                         minRotation: 0,
-                        autoSkip: true, // Skip labels if too crowded
-                        maxTicksLimit: 15, // Limit ticks for readability
-                        padding: 5, // Add some padding below labels
+                        autoSkip: true,
+                        maxTicksLimit: 15,
+                        padding: 5,
                     },
                      title: {
                          display: !!xAxisLabel,
                          text: xAxisLabel,
                          color: `rgb(${defaultColors.tickColor})`,
-                         font: { size: 12 } // Slightly smaller axis title
+                         font: { size: 12 }
                     }
                 },
             },
-            // Optional: Improve hover interaction
+            // Interaction config remains the same
             interaction: {
-                mode: 'index', // Show tooltip for the bar at the hovered index
-                intersect: false, // Tooltip appears even if not directly hovering the bar center
+                mode: 'index',
+                intersect: false,
             },
-
+            // Animation config remains the same
              animation: {
                  duration: 400,
                  easing: 'easeOutQuad',
              },
         };
-    // Include dependencies for dynamic calculations if added
-    }, [title, yAxisLabel, xAxisLabel, datasetLabel, chartData.datasets]);
+    }, [title, yAxisLabel, xAxisLabel, datasetLabel, chartData.datasets]); // Dependencies remain the same
 
-    // Display a message if there's no data
+    // Display a message if there's no data (remains the same)
     if (!data || data.length === 0) {
         return (
-            // Ensure this container also respects the parent's height context
             <div className={`flex items-center justify-center h-full text-gray-500 ${className}`}>
                 No data available to display.
             </div>
         );
     }
 
+    // Render component (remains the same)
     return (
         <div className={`relative w-full flex flex-col h-full ${className}`}>
-            {/* Chart Container - flex-grow allows it to take available vertical space */}
             <div className="relative flex-grow min-h-0">
                 <Bar options={chartOptions} data={chartData} />
             </div>
