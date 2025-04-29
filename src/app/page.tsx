@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from 'next/link';
 import { FcGoogle } from "react-icons/fc";
 import Button from "./components/Button";
-import StartupHeader from "./components/StarupHeader";
+import StartupHeader from "./components/StartupHeader";
 import Swal from 'sweetalert2'; // Import SweetAlert2
 
 export default function SignInPage() {

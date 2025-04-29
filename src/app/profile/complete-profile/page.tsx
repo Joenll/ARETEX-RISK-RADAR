@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Swal from "sweetalert2";
 import Button from "@/app/components/Button"; // Adjust path if needed
-import StartupHeader from "@/app/components/StarupHeader"; // Adjust path if needed
+import StartupHeader from "@/app/components/StartupHeader"; // Adjust path if needed
 import { UserSex } from "@/models/UserProfile"; // Adjust path if needed
 
 // --- Define possible sex values for the dropdown ---

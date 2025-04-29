@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FcGoogle } from "react-icons/fc";
 import Button from "../components/Button"; // Adjust path if needed
-import StartupHeader from "../components/StarupHeader"; // Adjust path if needed
+import StartupHeader from "../components/StartupHeader"; // Adjust path if needed
 import { UserSex } from "@/models/UserProfile"; // Adjust path if needed
 import Swal from 'sweetalert2'; // Import SweetAlert2
 
