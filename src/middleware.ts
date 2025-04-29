@@ -1,107 +1,133 @@
-
+// src/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { UserStatus } from "@/models/User"; // Import UserStatus type
 
 // Define root paths based on role
 const USER_AUTHENTICATED_ROOT = "/ui/dashboard";
 const ADMIN_AUTHENTICATED_ROOT = "/ui/admin/dashboard";
-const PUBLIC_PATHS = ["/", "/registration", "/about", "/terms"]; // Your public pages
-const AUTH_PAGES = ["/", "/registration"]; // Pages logged-in users should be redirected away from
+const PENDING_APPROVAL_PAGE = ["/", "/registration", "/about", "/terms", "/forgot-password"]; // Your designated page for pending users
+const PROFILE_COMPLETE_PAGE = "/profile/complete-profile";
+const PUBLIC_PATHS = ["/", "/registration", "/about", "/terms", "/forgot-password"];
+const AUTH_PAGES = ["/", "/registration"];
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const secret = process.env.SESSION_SECRET;
-  console.log("Middleware running for:", pathname);
 
   // --- Get Token ---
-  // Encapsulate token fetching to handle potential errors gracefully
   let token = null;
   try {
-    token = await getToken({ req, secret });
-    console.log("[Token Check] Token fetched:", token ? `Exists (Role: ${token.role})` : "None");
+    const cookieName = process.env.NODE_ENV === 'production'
+      ? '__Secure-next-auth.session-token'
+      : 'next-auth.session-token';
+    token = await getToken({ req, secret, cookieName });
+    console.log(`[Middleware] Path: ${pathname} | Token fetched:`, token ? `Exists (Role: ${token.role}, Status: ${token.status}, ProfileComplete: ${token.profileComplete})` : "None");
   } catch (error) {
-    console.error("[Token Check] Error calling getToken:", error);
-    // If token check fails, treat as unauthenticated and redirect to sign-in
+    console.error(`[Middleware] Path: ${pathname} | Error calling getToken:`, error);
     const signInUrl = new URL("/", req.url);
     signInUrl.searchParams.set("error", "auth_check_failed");
     return NextResponse.redirect(signInUrl);
   }
 
   const isLoggedIn = !!token;
-  const userRole = token?.role as string | undefined;
+  const userRole = token?.role as "admin" | "user" | undefined;
+  const userStatus = token?.status as UserStatus | undefined;
+  const profileComplete = token?.profileComplete ?? false;
 
   // --- Handle Public Paths ---
   if (PUBLIC_PATHS.includes(pathname)) {
-    // If user is logged in AND on a page they should be redirected away from (/, /registration)
     if (isLoggedIn && AUTH_PAGES.includes(pathname)) {
-      // *** CHANGE: Use role-specific root path ***
-      const redirectUrl = userRole === 'admin' ? ADMIN_AUTHENTICATED_ROOT : USER_AUTHENTICATED_ROOT;
-      console.log(`[Public Auth Page Redirect] Redirecting logged-in ${userRole} from ${pathname} to ${redirectUrl}.`);
+      // --- FIX: Check if already on the pending page ---
+      // If user is pending and already on the designated pending page, allow them to stay.
+      if (userStatus === 'pending' && PENDING_APPROVAL_PAGE.includes(pathname)) {
+          console.log(`[Middleware] Allowing pending user to stay on ${PENDING_APPROVAL_PAGE}.`);
+          return NextResponse.next(); // Allow access
+      }
+      // --- End FIX ---
+
+      // Determine redirect based on profile completion and status first
+      if (!profileComplete) {
+        console.log(`[Middleware] Logged-in user on ${pathname} with incomplete profile. Redirecting to ${PROFILE_COMPLETE_PAGE}.`);
+        return NextResponse.redirect(new URL(PROFILE_COMPLETE_PAGE, req.url));
+      }
+      // If pending but NOT on the pending page, redirect them there.
+      if (userStatus === 'pending') {
+         console.log(`[Middleware] Logged-in user on ${pathname} with pending status. Redirecting to ${PENDING_APPROVAL_PAGE}.`);
+         return NextResponse.redirect(new URL(PENDING_APPROVAL_PAGE[0], req.url));
+      }
+      // If profile complete and approved, redirect to dashboard
+      const redirectUrl = userRole === "admin" ? ADMIN_AUTHENTICATED_ROOT : USER_AUTHENTICATED_ROOT;
+      console.log(`[Middleware] Logged-in user on ${pathname}. Redirecting to ${redirectUrl}.`);
       return NextResponse.redirect(new URL(redirectUrl, req.url));
     }
-    // Otherwise, allow access to public paths (/, /registration for logged-out users, /about for everyone)
-    console.log(`[Public Path Access] Allowing access to ${pathname}.`);
+    // Allow access to public path for non-logged-in users or logged-in users on non-auth public pages
+    console.log(`[Middleware] Allowing public access to ${pathname}.`);
     const response = NextResponse.next();
-     // Apply no-store cache only to auth pages if needed
-     if (AUTH_PAGES.includes(pathname)) {
-        response.headers.set('Cache-Control', 'no-store, must-revalidate');
-        console.log(`[Public Path Check] Added Cache-Control header for ${pathname}`);
+    if (AUTH_PAGES.includes(pathname)) {
+      response.headers.set("Cache-Control", "no-store, must-revalidate");
     }
     return response;
   }
 
   // --- Handle Authenticated Routes ---
 
-  // If user is NOT logged in, redirect to sign-in page
+  // 1. Check if logged in
   if (!isLoggedIn) {
-    console.log(`[Auth Required] No token found for ${pathname}, redirecting to sign-in.`);
+    console.log(`[Middleware] Auth required for ${pathname}. Redirecting to sign-in.`);
     const signInUrl = new URL("/", req.url);
-    // Preserve the intended destination as callbackUrl
-    signInUrl.searchParams.set('callbackUrl', pathname);
+    signInUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(signInUrl);
   }
 
-  // --- *** NEW: Redirect logged-in users landing on '/' after login *** ---
-  // This handles the case after successful login where NextAuth redirects to '/'
-  if (pathname === '/') {
-      const redirectUrl = userRole === 'admin' ? ADMIN_AUTHENTICATED_ROOT : USER_AUTHENTICATED_ROOT;
-      console.log(`[Post-Login Redirect] Redirecting logged-in ${userRole} from / to ${redirectUrl}`);
-      return NextResponse.redirect(new URL(redirectUrl, req.url));
+  // 2. Check if profile is complete
+  if (!profileComplete) {
+    if (pathname === PROFILE_COMPLETE_PAGE) {
+      console.log(`[Middleware] Allowing access to ${PROFILE_COMPLETE_PAGE} for incomplete profile.`);
+      return NextResponse.next();
+    }
+    console.log(`[Middleware] Profile incomplete. Redirecting from ${pathname} to ${PROFILE_COMPLETE_PAGE}.`);
+    return NextResponse.redirect(new URL(PROFILE_COMPLETE_PAGE, req.url));
   }
-  // --- *** END NEW SECTION *** ---
 
+  // 3. Check account status
+  if (userStatus === 'pending') {
+    // --- FIX: Allow access if already on the pending page ---
+    if (PENDING_APPROVAL_PAGE.includes(pathname)) {
+       console.log(`[Middleware] Allowing pending user access to ${PENDING_APPROVAL_PAGE}.`);
+       return NextResponse.next(); // Allow access
+    }
+    // --- End FIX ---
+    // Redirect any other authenticated route to the pending page
+    console.log(`[Middleware] Account pending. Redirecting from ${pathname} to ${PENDING_APPROVAL_PAGE}.`);
+    return NextResponse.redirect(new URL(PENDING_APPROVAL_PAGE[0], req.url));
+  }
 
-  // --- Handle Admin Path Authorization ---
+  if (userStatus === 'rejected') {
+    // Optional: Redirect to a specific "rejected" page or just back to root
+    console.log(`[Middleware] Account rejected. Redirecting from ${pathname} to /.`);
+    const rejectedUrl = new URL("/", req.url);
+    rejectedUrl.searchParams.set("error", "Account rejected");
+    return NextResponse.redirect(rejectedUrl);
+  }
+
+  // 4. Check Role-Based Access
   if (pathname.startsWith("/ui/admin")) {
     if (userRole !== "admin") {
-      console.log(`[Admin Path Denied] Non-admin user (${userRole}) accessing ${pathname}. Redirecting to ${USER_AUTHENTICATED_ROOT}.`);
-      // *** CHANGE: Redirect non-admins to the USER dashboard ***
+      console.log(`[Middleware] Admin path denied for ${userRole}. Redirecting from ${pathname} to ${USER_AUTHENTICATED_ROOT}.`);
       return NextResponse.redirect(new URL(USER_AUTHENTICATED_ROOT, req.url));
     }
-    console.log(`[Admin Path Access] Admin access granted for ${pathname}.`);
-  } else {
-    // Optional: Prevent admins from accessing user-specific pages if needed
-    // if (userRole === 'admin' && pathname.startsWith('/some/user/only/path')) {
-    //    return NextResponse.redirect(new URL(ADMIN_AUTHENTICATED_ROOT, req.url));
-    // }
-    console.log(`[Authenticated Path Access] Allowing ${userRole} access to ${pathname}.`);
+    console.log(`[Middleware] Admin access granted for ${pathname}.`);
   }
 
-  // If all checks pass, allow the request to proceed
+  // 5. Allow access to other authenticated routes
+  console.log(`[Middleware] Allowing approved ${userRole} access to ${pathname}.`);
   return NextResponse.next();
 }
 
 // Config remains the same
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - Any file extension (e.g., .png, .jpg) - this prevents middleware from running on static assets
-     */
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.).*)',
   ],
 };
