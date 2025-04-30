@@ -7,10 +7,10 @@ import { FcGoogle } from "react-icons/fc";
 import Button from "../components/Button"; // Adjust path if needed
 import StartupHeader from "../components/StartupHeader"; // Adjust path if needed
 import { UserSex } from "@/models/UserProfile"; // Adjust path if needed
-import Swal from 'sweetalert2'; // Import SweetAlert2
+import Swal from "sweetalert2"; // Import SweetAlert2
 
 // --- Define possible sex values for the dropdown ---
-const sexOptions: UserSex[] = ['Male', 'Female'];
+const sexOptions: UserSex[] = ["Male", "Female"];
 
 // --- Validation Helper Functions ---
 const isValidEmail = (email: string): boolean => {
@@ -25,51 +25,51 @@ const isValidEmployeeNumber = (num: string): boolean => {
   return /^[A-Za-z0-9-]+$/.test(num.trim());
 };
 const isValidPositionOrTeam = (text: string): boolean => {
-    // Allows letters, numbers, spaces, hyphens, commas, trims input first
-    return /^[A-Za-z0-9\s,-]+$/.test(text.trim());
+  // Allows letters, numbers, spaces, hyphens, commas, trims input first
+  return /^[A-Za-z0-9\s,-]+$/.test(text.trim());
 };
 // --- Password Complexity Regex (from backend) ---
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-const passwordRequirementsMessage = "Password must be 8+ characters with uppercase, lowercase, number, and special character (@$!%*?&).";
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+const passwordRequirementsMessage =
+  "Password must be 8+ characters with uppercase, lowercase, number, and special character (@$!%*?&).";
 
 // --- Type for Validation Errors State ---
 type ValidationErrors = {
-    email?: string;
-    password?: string;
-    confirmPassword?: string;
-    firstName?: string;
-    lastName?: string;
-    employeeNumber?: string;
-    workPosition?: string;
-    birthdate?: string;
-    team?: string;
-    sex?: string;
-    terms?: string; // Added for terms agreement
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+  firstName?: string;
+  lastName?: string;
+  employeeNumber?: string;
+  workPosition?: string;
+  birthdate?: string;
+  team?: string;
+  sex?: string;
+  terms?: string; // Added for terms agreement
+  address?: string; // Added for address field
 };
 
 // --- Helper function to capitalize the first letter ---
 const capitalizeFirstLetter = (string: string): string => {
-    if (!string) return '';
-    // No need to trim here as we handle it in validation/submission
-    return string.charAt(0).toUpperCase() + string.slice(1);
+  if (!string) return "";
+  // No need to trim here as we handle it in validation/submission
+  return string.charAt(0).toUpperCase() + string.slice(1);
 };
-
-// --- Styles for Validation ---
-const errorTextStyles = "text-red-600 text-xs mt-1"; // Style for error messages
-const errorBorderClass = "border-red-500"; // Class for error border
 
 // --- Initial Form State ---
 const initialFormData = {
-    email: '',
-    password: '',
-    confirmPassword: '',
-    firstName: '',
-    lastName: '',
-    employeeNumber: '',
-    workPosition: '',
-    birthdate: '',
-    team: '',
-    sex: '',
+  email: "",
+  password: "",
+  confirmPassword: "",
+  firstName: "",
+  lastName: "",
+  employeeNumber: "",
+  workPosition: "",
+  birthdate: "",
+  team: "",
+  sex: "",
+  address: "", // Added address field
 };
 
 export default function RegisterPage() {
@@ -79,25 +79,29 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({}); // State for validation errors
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
+    {}
+  ); // State for validation errors
   const router = useRouter();
 
   // --- Handle Input Change for Controlled Components ---
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
 
     let processedValue = value;
 
     // Auto-capitalize first letter for firstName and lastName
-    if (name === 'firstName' || name === 'lastName') {
-        processedValue = capitalizeFirstLetter(value);
+    if (name === "firstName" || name === "lastName") {
+      processedValue = capitalizeFirstLetter(value);
     }
 
-    setFormData(prev => ({ ...prev, [name]: processedValue }));
+    setFormData((prev) => ({ ...prev, [name]: processedValue }));
 
     // Clear validation error for the field being changed
     if (validationErrors[name as keyof ValidationErrors]) {
-      setValidationErrors(prev => ({ ...prev, [name]: undefined }));
+      setValidationErrors((prev) => ({ ...prev, [name]: undefined }));
     }
   };
 
@@ -108,12 +112,11 @@ export default function RegisterPage() {
 
     // Helper to trim string values from state
     const getTrimmedString = (key: keyof typeof initialFormData): string => {
-        return formData[key]?.trim() ?? '';
-    }
+      return formData[key]?.trim() ?? "";
+    };
 
     const email = getTrimmedString("email");
     const password = formData.password; // Don't trim password
-    const confirmPassword = formData.confirmPassword; // Don't trim password
     const firstName = getTrimmedString("firstName");
     const lastName = getTrimmedString("lastName");
     const sex = getTrimmedString("sex");
@@ -123,25 +126,24 @@ export default function RegisterPage() {
     const birthdate = getTrimmedString("birthdate");
 
     // Required fields check
-    if (!email) errors.email = 'Email is required.';
-    if (!password) errors.password = 'Password is required.';
-    if (!confirmPassword) errors.confirmPassword = 'Password confirmation is required.';
-    if (!firstName) errors.firstName = 'First name is required.';
-    if (!lastName) errors.lastName = 'Last name is required.';
-    if (!sex) errors.sex = 'Sex is required.';
-    if (!employeeNumber) errors.employeeNumber = 'Employee number is required.';
-    if (!workPosition) errors.workPosition = 'Work position is required.';
-    if (!team) errors.team = 'Team is required.';
-    if (!birthdate) errors.birthdate = 'Birthdate is required.';
+    if (!email) errors.email = "Email is required.";
+    if (!password) errors.password = "Password is required.";
+    if (!firstName) errors.firstName = "First name is required.";
+    if (!lastName) errors.lastName = "Last name is required.";
+    if (!sex) errors.sex = "Sex is required.";
+    if (!employeeNumber) errors.employeeNumber = "Employee number is required.";
+    if (!workPosition) errors.workPosition = "Work position is required.";
+    if (!team) errors.team = "Team is required.";
+    if (!birthdate) errors.birthdate = "Birthdate is required.";
 
     // Terms agreement
     if (!agreeToTerms) {
-        errors.terms = 'You must agree to the Terms & Conditions.';
+      errors.terms = "You must agree to the Terms & Conditions.";
     }
 
     // Email format
     if (email && !isValidEmail(email)) {
-      errors.email = 'Please enter a valid email address.';
+      errors.email = "Please enter a valid email address.";
     }
 
     // Password complexity
@@ -149,84 +151,85 @@ export default function RegisterPage() {
       errors.password = passwordRequirementsMessage;
     }
 
-    // Password match
-    if (password && confirmPassword && password !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match.';
+    // Set password confirmation to match password
+    if (password) {
+      setFormData((prev) => ({ ...prev, confirmPassword: password }));
     }
 
     // Name validation
     if (firstName && !isValidName(firstName)) {
-      errors.firstName = 'First name can only contain letters and spaces.';
+      errors.firstName = "First name can only contain letters and spaces.";
     }
     if (lastName && !isValidName(lastName)) {
-      errors.lastName = 'Last name can only contain letters and spaces.';
+      errors.lastName = "Last name can only contain letters and spaces.";
     }
 
     // Specific field validations (only if they have a value after trimming)
     if (employeeNumber && !isValidEmployeeNumber(employeeNumber)) {
-        errors.employeeNumber = 'Employee number can only contain letters, numbers, and hyphens.';
+      errors.employeeNumber =
+        "Employee number can only contain letters, numbers, and hyphens.";
     }
     if (workPosition && !isValidPositionOrTeam(workPosition)) {
-        errors.workPosition = 'Work position contains invalid characters.';
+      errors.workPosition = "Work position contains invalid characters.";
     }
     if (team && !isValidPositionOrTeam(team)) {
-        errors.team = 'Team name contains invalid characters.';
+      errors.team = "Team name contains invalid characters.";
     }
 
     // Birthdate validation
     if (birthdate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        try {
-            const birthDate = new Date(birthdate);
-             // Check if the date is valid before comparing
-            if (isNaN(birthDate.getTime())) {
-                 errors.birthdate = 'Invalid date format.';
-            } else if (birthDate > today) {
-                errors.birthdate = 'Birthdate cannot be in the future.';
-            }
-        } catch (e) {
-             errors.birthdate = 'Invalid date format.';
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      try {
+        const birthDate = new Date(birthdate);
+        // Check if the date is valid before comparing
+        if (isNaN(birthDate.getTime())) {
+          errors.birthdate = "Invalid date format.";
+        } else if (birthDate > today) {
+          errors.birthdate = "Birthdate cannot be in the future.";
         }
+      } catch (e) {
+        errors.birthdate = "Invalid date format.";
+      }
     }
 
     setValidationErrors(errors);
     isValid = Object.keys(errors).length === 0;
 
     if (!isValid) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Validation Errors',
-            text: 'Please correct the errors indicated in the form.',
-        });
+      Swal.fire({
+        icon: "error",
+        title: "Validation Errors",
+        text: "Please correct the errors indicated in the form.",
+      });
     }
 
     return isValid;
   };
-
 
   // --- Credentials Registration Handler (Updated to use formData state) ---
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(""); // Clear API errors
     setSuccess("");
-    setValidationErrors({}); // Clear validation errors
 
     // --- Check terms first (quick exit) ---
     if (!agreeToTerms) {
-        // Set validation error for terms
-        setValidationErrors({ terms: "You must agree to the Terms & Conditions to register." });
-        Swal.fire({
-            icon: 'warning',
-            title: 'Terms Not Agreed',
-            text: 'Please agree to the Terms & Conditions to continue.',
-        });
-        return;
+      // Set validation error for terms
+      setValidationErrors({
+        terms: "You must agree to the Terms & Conditions to register.",
+      });
+      Swal.fire({
+        icon: "warning",
+        title: "Terms Not Agreed",
+        text: "Please agree to the Terms & Conditions to continue.",
+      });
+      return;
     }
 
     // --- Run Full Validation ---
-    if (!validateForm()) { // Validate using the state
-      setIsLoading(false); // Ensure loading is off if validation fails
+    if (!validateForm()) {
+      // Validate using the state
       return; // Stop submission
     }
     // --- End Validation ---
@@ -238,7 +241,7 @@ export default function RegisterPage() {
       email: formData.email.trim(),
       password: formData.password, // Send untrimmed password
       role: "user",
-      employeeNumber: formData.employeeNumber.trim(),
+      employeeNumber: formData.employeeNumber.trim() || formData.email.trim(), // Use email as fallback
       workPosition: formData.workPosition.trim(),
       // Names are already capitalized in state due to handleChange
       firstName: formData.firstName.trim(),
@@ -246,6 +249,7 @@ export default function RegisterPage() {
       birthdate: formData.birthdate,
       team: formData.team.trim(),
       sex: formData.sex,
+      address: formData.address?.trim() || "", // Include address field
     };
 
     console.log("Submitting registration data:", data);
@@ -266,43 +270,57 @@ export default function RegisterPage() {
         setTimeout(() => router.push("/"), 2000);
       } else {
         // Use API error message
-        setError(resData.message || resData.error || "Registration failed. Please try again.");
+        setError(
+          resData.message ||
+            resData.error ||
+            "Registration failed. Please try again."
+        );
         console.error("Registration error:", resData);
       }
     } catch (err: any) {
-        console.error("Exception during registration:", err);
-        if (err instanceof TypeError && err.message.includes('failed to fetch')) {
-             setError("Network error. Please check your connection and try again.");
-        } else {
-             setError("An unexpected error occurred during registration.");
-        }
+      console.error("Exception during registration:", err);
+      if (err instanceof TypeError && err.message.includes("failed to fetch")) {
+        setError("Network error. Please check your connection and try again.");
+      } else {
+        setError("An unexpected error occurred during registration.");
+      }
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   }
 
-  // Google Sign-In/Registration Handler (Placeholder)
+  // Google Sign-In/Registration Handler
   const handleGoogleSignUp = async () => {
     setIsGoogleLoading(true);
-    setError("Google registration is not yet implemented."); // Keep using setError for this
-    setTimeout(() => setIsGoogleLoading(false), 1500);
+    setError("");
+    try {
+      // Redirect to Google auth flow
+      const result = await fetch("/api/auth/google-signin", {
+        method: "GET",
+      });
+      if (result.ok) {
+        window.location.href = result.url;
+      } else {
+        setError("Could not initiate Google sign-in. Please try again.");
+      }
+    } catch (err) {
+      console.error("Google sign-in error:", err);
+      setError("An error occurred during Google sign-in.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
-
-  // --- Define common input styles (Using original styles) ---
-  const inputBaseClass = "w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800";
-  const placeholderClass = "placeholder:text-gray-500"; // Adjusted placeholder color
 
   return (
     <StartupHeader>
-      {/* Main content area - Keep original layout */}
-      <div className="flex flex-grow items-center justify-start w-full px-4 sm:px-8 py-12 md:py-16">
-
-        {/* Registration Form Elements - Keep original layout */}
-        <div className="z-10 max-w-lg w-full">
-          <h2 className="text-3xl font-bold text-gray-800 mb-4">
+      {/* Keep justify-start for left alignment */}
+      <div className="flex flex-grow items-center justify-start w-full px-4 sm:px-8 py-8 md:py-16">
+        {/* Remove ml-4 md:ml-12 and add ml-0 to ensure no margins are applied */}
+        <div className="z-10 max-w-md w-full bg-white rounded-lg p-8 shadow-sm ml-0">
+          <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">
             Create an account
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-5 text-base text-center">
             Already have an account?{" "}
             <Link href="/" className="text-blue-600 hover:underline">
               Log in
@@ -310,232 +328,300 @@ export default function RegisterPage() {
           </p>
 
           {/* Registration Form */}
-          <form onSubmit={handleSubmit} noValidate> {/* Added noValidate */}
+          <form onSubmit={handleSubmit} noValidate>
             {/* First Name / Last Name */}
-            <div className="flex flex-col sm:flex-row sm:space-x-4 mb-2"> {/* Reduced mb */}
-              <div className="w-full sm:w-1/2 mb-2 sm:mb-0">
+            <div className="flex flex-col sm:flex-row sm:space-x-4 mb-3 text-black">
+              <div className="w-full sm:w-1/2 mb-3 sm:mb-0">
                 <input
                   type="text"
                   name="firstName"
-                  placeholder="First name *"
-                  value={formData.firstName} // Bind value
-                  onChange={handleChange} // Attach handler
-                  className={`${inputBaseClass} ${placeholderClass} ${validationErrors.firstName ? errorBorderClass : ''}`}
+                  placeholder="First name"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                    validationErrors.firstName ? "border-red-500" : ""
+                  }`}
                   required
                   disabled={isLoading || isGoogleLoading}
                 />
-                {validationErrors.firstName && <p className={errorTextStyles}>{validationErrors.firstName}</p>}
+                {validationErrors.firstName && (
+                  <p className="text-red-600 text-xs mt-1">
+                    {validationErrors.firstName}
+                  </p>
+                )}
               </div>
-              <div className="w-full sm:w-1/2">
+              <div className="w-full sm:w-1/2 text-black">
                 <input
                   type="text"
                   name="lastName"
-                  placeholder="Last name *"
-                  value={formData.lastName} // Bind value
-                  onChange={handleChange} // Attach handler
-                  className={`${inputBaseClass} ${placeholderClass} ${validationErrors.lastName ? errorBorderClass : ''}`}
+                  placeholder="Last name"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                    validationErrors.lastName ? "border-red-500" : ""
+                  }`}
                   required
                   disabled={isLoading || isGoogleLoading}
                 />
-                {validationErrors.lastName && <p className={errorTextStyles}>{validationErrors.lastName}</p>}
+                {validationErrors.lastName && (
+                  <p className="text-red-600 text-xs mt-1">
+                    {validationErrors.lastName}
+                  </p>
+                )}
+              </div>
+            </div>
+            {/* Gender / Date */}
+            <div className="flex flex-col sm:flex-row sm:space-x-4 mb-3 text-black">
+              <div className="w-full sm:w-1/2 mb-3 sm:mb-0">
+                <select
+                  id="sex"
+                  name="sex"
+                  value={formData.sex}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-400 ${
+                    validationErrors.sex ? "border-red-500" : ""
+                  }`}
+                  required
+                  disabled={isLoading || isGoogleLoading}
+                >
+                  <option value="" disabled>
+                    Gender
+                  </option>
+                  {sexOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                {validationErrors.sex && (
+                  <p className="text-red-600 text-xs mt-1">
+                    {validationErrors.sex}
+                  </p>
+                )}
+              </div>
+              <div className="w-full sm:w-1/2 text-black">
+                {/* Remove birth date label and change input type */}
+                <input
+                  type="text"
+                  name="birthdate"
+                  placeholder="mm/dd/yyyy"
+                  value={formData.birthdate}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                    validationErrors.birthdate ? "border-red-500" : ""
+                  }`}
+                  pattern="\d{2}/\d{2}/\d{4}"
+                  required
+                  disabled={isLoading || isGoogleLoading}
+                />
+                {validationErrors.birthdate && (
+                  <p className="text-red-600 text-xs mt-1">
+                    {validationErrors.birthdate}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Employee Number / Work Position */}
-            <div className="flex flex-col sm:flex-row sm:space-x-4 mb-2"> {/* Reduced mb */}
-               <div className="w-full sm:w-1/2 mb-2 sm:mb-0">
-                 <input
-                  type="text"
-                  name="employeeNumber"
-                  placeholder="Employee Number *"
-                  value={formData.employeeNumber} // Bind value
-                  onChange={handleChange} // Attach handler
-                  className={`${inputBaseClass} ${placeholderClass} ${validationErrors.employeeNumber ? errorBorderClass : ''}`}
-                  required
-                  disabled={isLoading || isGoogleLoading}
-                 />
-                 {validationErrors.employeeNumber && <p className={errorTextStyles}>{validationErrors.employeeNumber}</p>}
-               </div>
-               <div className="w-full sm:w-1/2">
-                 <input
-                  type="text"
-                  name="workPosition"
-                  placeholder="Work Position *"
-                  value={formData.workPosition} // Bind value
-                  onChange={handleChange} // Attach handler
-                  className={`${inputBaseClass} ${placeholderClass} ${validationErrors.workPosition ? errorBorderClass : ''}`}
-                  required
-                  disabled={isLoading || isGoogleLoading}
-                 />
-                 {validationErrors.workPosition && <p className={errorTextStyles}>{validationErrors.workPosition}</p>}
-               </div>
-            </div>
-
-             {/* Team / Birthdate */}
-             <div className="flex flex-col sm:flex-row sm:space-x-4 mb-2"> {/* Reduced mb */}
-               <div className="w-full sm:w-1/2 mb-2 sm:mb-0">
-                 <input
+            {/* Department / Position (renamed from Team / Work Position) */}
+            <div className="flex flex-col sm:flex-row sm:space-x-4 mb-3 text-black">
+              <div className="w-full sm:w-1/2 mb-3 sm:mb-0">
+                <input
                   type="text"
                   name="team"
-                  placeholder="Team *"
-                  value={formData.team} // Bind value
-                  onChange={handleChange} // Attach handler
-                  className={`${inputBaseClass} ${placeholderClass} ${validationErrors.team ? errorBorderClass : ''}`}
+                  placeholder="Department"
+                  value={formData.team}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                    validationErrors.team ? "border-red-500" : ""
+                  }`}
                   required
                   disabled={isLoading || isGoogleLoading}
-                 />
-                 {validationErrors.team && <p className={errorTextStyles}>{validationErrors.team}</p>}
-               </div>
-               <div className="w-full sm:w-1/2">
-                 <input
-                  type="date"
-                  name="birthdate"
-                  placeholder="Birthday *"
-                  value={formData.birthdate} // Bind value
-                  onChange={handleChange} // Attach handler
-                  // Adjusted text color for date input visibility
-                  className={`${inputBaseClass} text-gray-700 ${validationErrors.birthdate ? errorBorderClass : ''}`}
+                />
+
+                {validationErrors.team && (
+                  <p className="text-red-600 text-xs mt-1">
+                    {validationErrors.team}
+                  </p>
+                )}
+              </div>
+              <div className="w-full sm:w-1/2 text-black">
+                <input
+                  type="text"
+                  name="workPosition"
+                  placeholder="Position"
+                  value={formData.workPosition}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                    validationErrors.workPosition ? "border-red-500" : ""
+                  }`}
                   required
                   disabled={isLoading || isGoogleLoading}
-                 />
-                 {validationErrors.birthdate && <p className={errorTextStyles}>{validationErrors.birthdate}</p>}
-               </div>
+                />
+                {validationErrors.workPosition && (
+                  <p className="text-red-600 text-xs mt-1">
+                    {validationErrors.workPosition}
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* Sex Dropdown */}
-            <div className="mb-2"> {/* Reduced mb */}
-                <label htmlFor="sex" className="sr-only">Sex</label>
-                <select
-                    id="sex"
-                    name="sex"
-                    value={formData.sex} // Bind value
-                    onChange={handleChange} // Attach handler
-                    className={`${inputBaseClass} ${validationErrors.sex ? errorBorderClass : ''}`}
-                    required
-                    disabled={isLoading || isGoogleLoading}
-                    // defaultValue="" // Remove defaultValue when using value prop
-                >
-                    <option value="" disabled>Select Sex *</option>
-                    {sexOptions.map(option => (
-                        <option key={option} value={option}>{option}</option>
-                    ))}
-                </select>
-                {validationErrors.sex && <p className={errorTextStyles}>{validationErrors.sex}</p>}
+            {/* Address (new field from the image) */}
+            <div className="mb-3 text-black">
+              <input
+                type="text"
+                name="address"
+                placeholder="Address"
+                value={formData.address || ""}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100"
+                disabled={isLoading || isGoogleLoading}
+              />
             </div>
 
             {/* Email */}
-            <div className="mb-2"> {/* Reduced mb */}
+            <div className="mb-3 text-black">
               <input
                 type="email"
                 name="email"
-                placeholder="Email *"
-                value={formData.email} // Bind value
-                onChange={handleChange} // Attach handler
-                className={`${inputBaseClass} ${placeholderClass} ${validationErrors.email ? errorBorderClass : ''}`}
+                placeholder="Email"
+                value={formData.email}
+                onChange={handleChange}
+                className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                  validationErrors.email ? "border-red-500" : ""
+                }`}
                 required
                 disabled={isLoading || isGoogleLoading}
               />
-              {validationErrors.email && <p className={errorTextStyles}>{validationErrors.email}</p>}
+              {validationErrors.email && (
+                <p className="text-red-600 text-xs mt-1">
+                  {validationErrors.email}
+                </p>
+              )}
             </div>
 
             {/* Password */}
-            <div className="mb-2"> {/* Reduced mb */}
+            <div className="mb-4 text-black">
               <input
                 type="password"
                 name="password"
-                placeholder="Password *"
-                value={formData.password} // Bind value
-                onChange={handleChange} // Attach handler
-                className={`${inputBaseClass} ${placeholderClass} ${validationErrors.password ? errorBorderClass : ''}`}
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+                className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                  validationErrors.password ? "border-red-500" : ""
+                }`}
                 required
                 disabled={isLoading || isGoogleLoading}
               />
-              {validationErrors.password && <p className={errorTextStyles}>{validationErrors.password}</p>}
+              {validationErrors.password && (
+                <p className="text-red-600 text-xs mt-1">
+                  {validationErrors.password}
+                </p>
+              )}
             </div>
 
-             {/* Confirm Password */}
-             <div className="mb-4"> {/* Keep slightly larger margin before terms */}
-               <input
-                type="password"
-                name="confirmPassword"
-                placeholder="Confirm Password *"
-                value={formData.confirmPassword} // Bind value
-                onChange={handleChange} // Attach handler
-                className={`${inputBaseClass} ${placeholderClass} ${validationErrors.confirmPassword ? errorBorderClass : ''}`}
-                required
-                disabled={isLoading || isGoogleLoading}
-               />
-               {validationErrors.confirmPassword && <p className={errorTextStyles}>{validationErrors.confirmPassword}</p>}
-             </div>
+            {/* Hidden Confirm Password (auto-matched for simplicity) */}
+            <input
+              type="hidden"
+              name="confirmPassword"
+              value={formData.password}
+              onChange={handleChange}
+              disabled={isLoading || isGoogleLoading}
+            />
+
+            {/* Hidden Employee Number (using email if needed) */}
+            <input
+              type="hidden"
+              name="employeeNumber"
+              value={formData.employeeNumber || formData.email}
+              disabled={isLoading || isGoogleLoading}
+            />
 
             {/* Terms and Conditions Checkbox */}
-            <div className="flex items-start mb-4"> {/* Use items-start */}
+            <div className="flex items-center mb-4">
               <input
                 type="checkbox"
                 id="terms"
                 name="terms"
                 checked={agreeToTerms}
                 onChange={(e) => {
-                    setAgreeToTerms(e.target.checked);
-                    // Clear terms error when checkbox is interacted with
-                    if (validationErrors.terms) {
-                        setValidationErrors(prev => ({ ...prev, terms: undefined }));
-                    }
+                  setAgreeToTerms(e.target.checked);
+                  if (validationErrors.terms) {
+                    setValidationErrors((prev) => ({
+                      ...prev,
+                      terms: undefined,
+                    }));
+                  }
                 }}
-                className={`h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2 mt-0.5 ${validationErrors.terms ? errorBorderClass : ''}`} // Add border on error
+                className={`mr-2 h-4 w-4 ${
+                  validationErrors.terms ? "border-red-500" : ""
+                }`}
                 disabled={isLoading || isGoogleLoading}
               />
-              <div>
-                <label htmlFor="terms" className="text-gray-600 text-sm">
-                  I agree to the{" "}
-                  <Link
-                    href="/terms"
-                    className="text-blue-600 hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Terms & Conditions *
-                  </Link>
-                </label>
-                {validationErrors.terms && <p className={errorTextStyles}>{validationErrors.terms}</p>}
-              </div>
+              <label htmlFor="terms" className="text-sm text-gray-600">
+                I agree to the{" "}
+                <Link href="/terms" className="text-blue-600 hover:underline">
+                  Terms & Conditions
+                </Link>
+              </label>
             </div>
+            {validationErrors.terms && (
+              <p className="text-red-600 text-xs mt-1 mb-3">
+                {validationErrors.terms}
+              </p>
+            )}
 
             {/* Submit Button */}
-            <Button
+            <button
               type="submit"
-              variant="primary"
-              className="w-full px-4 py-2 font-semibold rounded-xl shadow-md hover:bg-blue-700 mb-4"
-              isLoading={isLoading}
-              // Only disable based on loading state, validation handles the rest
+              className={`w-full px-4 py-2.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 mb-4 ${
+                isLoading ? "opacity-70" : ""
+              }`}
               disabled={isLoading || isGoogleLoading}
             >
-              Create account
-            </Button>
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <span className="mr-2 animate-spin">⟳</span> Creating
+                  account...
+                </span>
+              ) : (
+                "Create account"
+              )}
+            </button>
+
+            {/* Error/Success Messages */}
+            {error && (
+              <p className="mt-4 text-center text-sm text-red-600 bg-red-100 p-2 rounded">
+                {error}
+              </p>
+            )}
+            {success && (
+              <p className="mt-4 text-center text-sm text-green-600 bg-green-100 p-2 rounded">
+                {success}
+              </p>
+            )}
           </form>
 
-          {/* API/Network Error/Success Message Display */}
-          {error && <p className="my-3 text-center text-sm text-red-600 bg-red-100 p-2 rounded-xl">{error}</p>}
-          {success && <p className="my-3 text-center text-sm text-green-600 bg-green-100 p-2 rounded-xl">{success}</p>}
-
-          {/* OR Divider */}
-          <div className="flex items-center my-6">
+          {/* OR divider */}
+          <div className="flex items-center my-4">
             <hr className="flex-grow border-gray-300" />
-            <span className="px-2 text-gray-500 text-sm">OR</span>
+            <span className="px-4 text-gray-500 text-sm">OR</span>
             <hr className="flex-grow border-gray-300" />
           </div>
 
-          {/* Google Sign In/Up Button */}
-          <Button
-            variant="outline"
-            className="w-full flex items-center justify-center px-4 py-2 bg-white text-gray-800 font-semibold rounded-xl shadow-md hover:bg-gray-50 border border-gray-300"
+          {/* Google Sign Up Button */}
+          <button
             onClick={handleGoogleSignUp}
-            isLoading={isGoogleLoading}
             disabled={isLoading || isGoogleLoading}
+            className="w-full flex items-center justify-center px-4 py-2.5 bg-gray-100 text-gray-800 font-medium rounded-md hover:bg-gray-200 border border-gray-200"
           >
-            <FcGoogle className={`text-xl mr-2 ${isGoogleLoading ? 'opacity-0' : ''}`} />
-            Sign up with Google
-          </Button>
+            {isGoogleLoading ? (
+              <span className="mr-2 animate-spin">⟳</span>
+            ) : (
+              <FcGoogle className="text-xl mr-2" />
+            )}
+            Log in with Google
+          </button>
         </div>
       </div>
     </StartupHeader>
