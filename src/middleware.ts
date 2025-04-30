@@ -6,7 +6,7 @@ import { UserStatus } from "@/models/User"; // Import UserStatus type
 // Define root paths based on role
 const USER_AUTHENTICATED_ROOT = "/ui/dashboard";
 const ADMIN_AUTHENTICATED_ROOT = "/ui/admin/dashboard";
-const PENDING_APPROVAL_PAGE = ["/", "/registration", "/about", "/terms", "/forgot-password"]; // Your designated page for pending users
+const PENDING_APPROVAL_PAGE = ["/", "/registration", "/about", "/terms" , "/forgot-password"]; // Your designated page for pending users
 const PROFILE_COMPLETE_PAGE = "/profile/complete-profile";
 const PUBLIC_PATHS = ["/", "/registration", "/about", "/terms", "/forgot-password"];
 const AUTH_PAGES = ["/", "/registration"];

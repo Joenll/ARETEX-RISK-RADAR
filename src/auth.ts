@@ -107,7 +107,8 @@ export const authOptions: AuthOptions = {
 
           if (!user.password) {
             console.warn(`[Auth] Authorize failed: User ${credentials.email} exists but has no password (likely OAuth).`);
-            return null;
+            // Throw specific error for frontend to handle OAuthAccountNotLinked scenario
+            throw new Error("OAuthAccountNotLinked");
           }
 
           const isValidPassword = await bcrypt.compare(
@@ -116,7 +117,8 @@ export const authOptions: AuthOptions = {
           );
           if (!isValidPassword) {
             console.log(`[Auth] Authorize failed: Invalid password for email ${credentials.email}`);
-            return null;
+            // Throw specific error for invalid credentials
+             throw new Error("InvalidCredentials");
           }
 
           // NOTE: Status check moved to signIn callback for consistency across providers
@@ -154,15 +156,20 @@ export const authOptions: AuthOptions = {
           };
 
         } catch (error: any) {
+          // Re-throw specific errors for frontend handling
+          if (error.message === "OAuthAccountNotLinked" || error.message === "InvalidCredentials") {
+            throw error;
+          }
+          // Handle other unexpected errors
           console.error("[Auth] Error during authorization:", error.message || error);
-          throw new Error("Authentication error occurred.");
+          throw new Error("Authentication error occurred."); // Generic error for others
         }
       },
     }),
   ],
   pages: {
     signIn: "/", // Your main page acts as the sign-in page
-    // error: '/auth/error', // Optional: Custom error page
+    error: "/",  // <<< ADD THIS LINE: Redirect errors back to the sign-in page
   },
   session: {
     strategy: "jwt",
@@ -175,56 +182,75 @@ export const authOptions: AuthOptions = {
       console.log(`[Auth] signIn callback triggered for user: ${user.email}, Provider: ${account?.provider ?? 'credentials'}`);
 
       // The user.id *should* be the MongoDB ObjectId string from the adapter or authorize
-      const userId = user.id;
+      // For initial Google sign-in via adapter, user.id might be the Google ID temporarily.
+      let userId = user.id;
+      let userEmail = user.email; // Use email from the user object passed in
 
-      if (!userId) {
-          console.error("[Auth] signIn callback: No user ID provided in user object.");
+      if (!userId && !userEmail) {
+          console.error("[Auth] signIn callback: No user ID or email provided in user object.");
           return false; // Prevent sign-in
       }
 
-      // --- REMOVED Validation: Check if ID is a valid ObjectId format ---
-      // We'll trust the ID provided by the adapter/authorize at this stage
-      // and focus on checking the user's status from the DB.
-      // The jwt callback handles potential ID format issues later.
-      // --- End REMOVED Validation ---
-
       await connectDB();
-      try {
-          // Attempt to find the user by the provided ID.
-          const dbUser = await User.findById(userId).select('status').lean(); // Only need status here
+      let dbUser: Pick<IUser, 'status'> | null = null; // Use Pick for specific fields
 
+      try {
+          // Strategy:
+          // 1. If ID is a valid ObjectId, try finding by ID.
+          // 2. If not valid ObjectId (likely Google ID) OR findById fails, try finding by email.
+          if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+              console.log(`[Auth] signIn: Attempting to find user by valid ObjectId: ${userId}`);
+              dbUser = await User.findById(userId).select('status').lean();
+          }
+
+          // If not found by ID or ID wasn't valid ObjectId, try email (especially for initial OAuth link)
+          if (!dbUser && userEmail) {
+              console.log(`[Auth] signIn: User not found by ID or ID invalid. Attempting to find user by email: ${userEmail}`);
+              dbUser = await User.findOne({ email: userEmail }).select('status').lean();
+          }
+
+          // If still no user found after checking ID and email
           if (!dbUser) {
-              console.warn(`[Auth] signIn callback: User not found in DB with ID: ${userId}. This might be temporary during OAuth flow if ID is not ObjectId yet. Allowing flow to continue to JWT callback.`);
-              return true; // Allow flow to continue to JWT callback
+              // This case might happen during the very first sign-up via Google before the adapter creates the user.
+              // It's generally safe to allow this flow to continue, as the adapter will handle creation.
+              // If a user *should* exist but isn't found, it indicates a different problem.
+              console.warn(`[Auth] signIn callback: User not found in DB by ID ('${userId}') or email ('${userEmail}'). Allowing flow to continue (likely first OAuth sign-up).`);
+              return true; // Allow flow to continue (adapter will create user if needed)
           }
 
           // --- Centralized Status Check ---
+          // *** ADDED 'pending' CHECK ***
           if (dbUser.status === 'pending') {
-              console.log(`[Auth] signIn blocked: User ${user.email} status is 'pending'.`);
-              throw new Error("Account not approved");
+              console.log(`[Auth] signIn blocked: User ${userEmail} status is 'pending'.`);
+              // Throw a specific error code for the frontend
+              throw new Error("AccountPending");
           }
+          // *** END ADDED CHECK ***
+
           if (dbUser.status === 'rejected') {
-              console.log(`[Auth] signIn blocked: User ${user.email} status is 'rejected'.`);
-              throw new Error("Account rejected");
+              console.log(`[Auth] signIn blocked: User ${userEmail} status is 'rejected'.`);
+              // Throw a specific error code for the frontend
+              throw new Error("AccountRejected");
           }
 
           // If user found and status is approved
-          console.log(`[Auth] signIn allowed for user: ${user.email} (Status: ${dbUser.status})`);
+          console.log(`[Auth] signIn allowed for user: ${userEmail} (Status: ${dbUser.status})`);
           return true; // Allow session creation
 
       } catch (error: any) {
           // Handle specific errors thrown above
-          if (error.message === "Account not approved" || error.message === "Account rejected") {
-              throw error; // Rethrow specific errors for frontend handling
+          // *** ADDED "AccountPending" TO RETHROWN ERRORS ***
+          if (error.message === "AccountPending" || error.message === "AccountRejected" || error.message === "Account not approved") {
+              throw error; // Rethrow specific errors for frontend handling via URL params
           }
-          // Handle potential CastError if findById was called with an invalid format ID
+          // Handle potential CastError if findById was called with an invalid format ID (less likely now with the email fallback)
           if (error.name === 'CastError' && error.path === '_id') {
-               console.warn(`[Auth] signIn callback: CastError finding user by ID ${userId}. This might be temporary during OAuth flow. Allowing flow to continue to JWT callback.`);
-               return true; // Allow flow to continue to JWT callback
+               console.warn(`[Auth] signIn callback: CastError finding user by ID ${userId}. Allowing flow to continue.`);
+               return true; // Allow flow to continue
           }
 
           // Handle other unexpected errors
-          console.error(`[Auth] signIn callback: Unexpected error during DB lookup or status check for user ID ${userId}:`, error);
+          console.error(`[Auth] signIn callback: Unexpected error during DB lookup or status check for user ${userEmail}:`, error);
           return false; // Prevent sign-in on other errors
       }
   },
@@ -241,18 +267,20 @@ export const authOptions: AuthOptions = {
       if (userIdToFetch && !mongoose.Types.ObjectId.isValid(userIdToFetch)) {
           console.warn(`[Auth] jwt callback: Invalid user ID format found: ${userIdToFetch}. Attempting fallback.`);
           // Fallback: If it's initial Google sign-in and ID is invalid, try finding user by email.
-          if (user?.email && account?.provider === 'google' && !mongoose.Types.ObjectId.isValid(user.id)) {
+          // Use token.email as fallback if user object isn't present (e.g., on session update)
+          const emailForFallback = user?.email || token?.email;
+          if (emailForFallback && account?.provider === 'google' && (!user || !mongoose.Types.ObjectId.isValid(user.id))) {
               try {
-                  const userByEmail = await User.findOne({ email: user.email }).select('_id').lean();
+                  const userByEmail = await User.findOne({ email: emailForFallback }).select('_id').lean();
                   if (userByEmail) {
-                      console.log(`[Auth] jwt callback: Fallback successful. Found user by email (${user.email}), using DB ID: ${userByEmail._id.toString()}`);
+                      console.log(`[Auth] jwt callback: Fallback successful. Found user by email (${emailForFallback}), using DB ID: ${userByEmail._id.toString()}`);
                       userIdToFetch = userByEmail._id.toString(); // Correct the ID
                   } else {
-                      console.error(`[Auth] jwt callback: Fallback failed. Invalid ID (${user.id}) and could not find user by email: ${user.email}`);
+                      console.error(`[Auth] jwt callback: Fallback failed. Invalid ID (${userIdToFetch}) and could not find user by email: ${emailForFallback}`);
                       userIdToFetch = undefined; // Cannot proceed
                   }
               } catch (dbError) {
-                  console.error(`[Auth] jwt callback: Error during email fallback lookup for ${user.email}:`, dbError);
+                  console.error(`[Auth] jwt callback: Error during email fallback lookup for ${emailForFallback}:`, dbError);
                   userIdToFetch = undefined;
               }
           } else {
@@ -305,7 +333,8 @@ export const authOptions: AuthOptions = {
 
                   } else {
                       console.error(`[Auth] jwt callback: Could not find user ${userIdToFetch} in DB during population/refresh. Returning original token.`);
-                      return token; // Return original token if user lookup fails
+                      // If user is deleted mid-session, prevent further use of token
+                      return { id: '', email: '', role: 'user', status: 'pending', profileComplete: false }; // Return a default JWT object to invalidate
                   }
               } catch (error) {
                   console.error(`[Auth] jwt callback: Error fetching user ${userIdToFetch} from DB:`, error);
@@ -313,10 +342,11 @@ export const authOptions: AuthOptions = {
               }
           }
           // --- Subsequent Requests ---
-          // (Optional logic for re-checking profileComplete remains commented out)
+          // (No changes needed here for this request)
       } else {
           console.error("[Auth] jwt callback: Cannot proceed without a valid user ID. Returning original token.");
-          return token; // Return original token if ID is invalid
+          // If ID is invalid, potentially invalidate token
+          return { id: '', email: '', role: 'user', status: 'pending', profileComplete: false, name: '', profile: '' }; // Return a default JWT object to invalidate
       }
 
       return token; // Return the populated/refreshed token
@@ -328,17 +358,17 @@ export const authOptions: AuthOptions = {
     async session({ session, token }) {
       // Assign properties from the token to session.user
       // Ensure all properties exist on the token before assigning
-      if (token && session.user) {
-        session.user.id = token.id || token.sub || ''; // Use id or sub, fallback to empty string
+      if (token && token.id && session.user) { // Check if token has essential data (like id)
+        session.user.id = token.id;
         session.user.role = token.role;
         session.user.status = token.status;
         session.user.profileComplete = token.profileComplete ?? false; // Ensure boolean
         session.user.name = token.name; // Assign name from token
         session.user.profile = token.profile;
         session.user.email = token.email || ''; // Ensure email exists
-      } else if (!token || Object.keys(token).length === 0) { // Check if token is null or empty object
-          // If token is somehow null or empty, invalidate the session
-          console.warn("[Auth] session callback: Received empty or invalid token. Returning null session.");
+      } else {
+          // If token is invalid or missing essential data, invalidate the session
+          console.warn("[Auth] session callback: Received invalid or incomplete token. Returning null session.");
           return null as any; // Return null to indicate no active session
       }
       // console.log("[Auth] session callback, returning session:", JSON.stringify(session, null, 2)); // Debug log

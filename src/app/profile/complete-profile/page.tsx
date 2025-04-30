@@ -1,18 +1,18 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-
-// --- Define reusable input styles ---
-const inputBaseClass = "w-full px-4 py-2 border border-gray-300 rounded-xl text-black";
-const placeholderClass = "placeholder-gray-500";
-const errorBorderClass = "border-red-600";
-const errorTextStyles = "text-red-600 text-xs mt-1";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Swal from "sweetalert2";
 import Button from "@/app/components/Button"; // Adjust path if needed
 import StartupHeader from "@/app/components/StartupHeader"; // Adjust path if needed
 import { UserSex } from "@/models/UserProfile"; // Adjust path if needed
+
+// --- Define reusable input styles ---
+const inputBaseClass = "w-full px-4 py-2 border border-gray-300 rounded-xl text-black";
+const placeholderClass = "placeholder-gray-500";
+const errorBorderClass = "border-red-600";
+const errorTextStyles = "text-red-600 text-xs mt-1";
 
 // --- Define possible sex values for the dropdown ---
 const sexOptions: UserSex[] = ["Male", "Female"];
@@ -57,23 +57,27 @@ export default function CompleteProfilePage() {
   useEffect(() => {
     if (status === "loading") return;
     if (status === "unauthenticated") {
-      router.push("/signin?message=unauthenticated");
+      // Redirect to sign-in page if not logged in
+      router.push("/?error=SessionExpired"); // Use root as sign-in page
       return;
     }
 
-    if (session?.user?.profile === "complete") {
+    // Check if profile is already complete
+    if (session?.user?.profileComplete === true) {
       Swal.fire({
         icon: "info",
-        title: "Profile Complete",
-        text: "Your profile details are already set up.",
-        timer: 2000,
+        title: "Profile Already Complete",
+        text: "Your profile details are already set up. Wait for Admin Approval...",
+        timer: 4000,
         showConfirmButton: false,
       }).then(() => {
-        router.push("/");
+        // Redirect to dashboard or appropriate page
+        router.push("/ui/dashboard"); // Adjust target route if needed
       });
-      return;
+      return; // Stop further execution in this effect
     }
 
+    // Pre-fill name if available and not already set in form state
     if (session?.user?.name && !formData.firstName && !formData.lastName) {
       const nameParts = session.user.name.split(" ");
       setFormData((prev) => ({
@@ -82,7 +86,7 @@ export default function CompleteProfilePage() {
         lastName: nameParts.slice(1).join(" ") || "",
       }));
     }
-  }, [session, status, router, formData.firstName, formData.lastName]);
+  }, [session, status, router, formData.firstName, formData.lastName]); // Dependencies
 
   // --- Handle Input Change ---
   const handleChange = (
@@ -91,6 +95,7 @@ export default function CompleteProfilePage() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
+    // Clear validation error for the field being changed
     if (validationErrors[name as keyof ValidationErrors]) {
       setValidationErrors((prev) => ({ ...prev, [name]: undefined }));
     }
@@ -104,38 +109,44 @@ export default function CompleteProfilePage() {
     const { firstName, lastName, employeeNumber, workPosition, birthdate, team, sex } =
       formData;
 
-    if (!firstName) errors.firstName = "First name is required.";
-    if (!lastName) errors.lastName = "Last name is required.";
+    // Required field checks
+    if (!firstName.trim()) errors.firstName = "First name is required.";
+    if (!lastName.trim()) errors.lastName = "Last name is required.";
     if (!sex) errors.sex = "Sex is required.";
-    if (!employeeNumber) errors.employeeNumber = "Employee number is required.";
-    if (!workPosition) errors.workPosition = "Work position is required.";
-    if (!team) errors.team = "Team is required.";
+    if (!employeeNumber.trim()) errors.employeeNumber = "Employee number is required.";
+    if (!workPosition.trim()) errors.workPosition = "Work position is required.";
+    if (!team.trim()) errors.team = "Team is required.";
     if (!birthdate) errors.birthdate = "Birthdate is required.";
 
-    if (firstName && !isValidName(firstName)) {
+    // Format/Pattern checks
+    if (firstName.trim() && !isValidName(firstName)) {
       errors.firstName = "First name can only contain letters and spaces.";
     }
-    if (lastName && !isValidName(lastName)) {
+    if (lastName.trim() && !isValidName(lastName)) {
       errors.lastName = "Last name can only contain letters and spaces.";
     }
-    if (employeeNumber && !isValidEmployeeNumber(employeeNumber)) {
+    if (employeeNumber.trim() && !isValidEmployeeNumber(employeeNumber)) {
       errors.employeeNumber =
         "Employee number can only contain letters, numbers, and hyphens.";
     }
-    if (workPosition && !isValidPositionOrTeam(workPosition)) {
+    if (workPosition.trim() && !isValidPositionOrTeam(workPosition)) {
       errors.workPosition = "Work position contains invalid characters.";
     }
-    if (team && !isValidPositionOrTeam(team)) {
+    if (team.trim() && !isValidPositionOrTeam(team)) {
       errors.team = "Team name contains invalid characters.";
     }
     if (birthdate) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const birthDate = new Date(birthdate);
-      if (isNaN(birthDate.getTime())) {
+      try {
+        const birthDate = new Date(birthdate);
+        if (isNaN(birthDate.getTime())) {
+          errors.birthdate = "Invalid date format.";
+        } else if (birthDate > today) {
+          errors.birthdate = "Birthdate cannot be in the future.";
+        }
+      } catch (e) {
         errors.birthdate = "Invalid date format.";
-      } else if (birthDate > today) {
-        errors.birthdate = "Birthdate cannot be in the future.";
       }
     }
 
@@ -156,15 +167,17 @@ export default function CompleteProfilePage() {
   // --- Form Submission Handler ---
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setValidationErrors({});
+    setValidationErrors({}); // Clear previous errors
 
+    // Run validation
     if (!validateForm()) {
-      setIsLoading(false);
+      // Don't set isLoading here, just return
       return;
     }
 
-    setIsLoading(true);
+    setIsLoading(true); // Set loading state
 
+    // Prepare data, ensuring trimming
     const dataToSubmit = {
       employeeNumber: formData.employeeNumber.trim(),
       workPosition: formData.workPosition.trim(),
@@ -184,44 +197,56 @@ export default function CompleteProfilePage() {
       const resData = await response.json();
 
       if (response.ok) {
+        // Trigger session refresh
         await update();
+        console.log("Session update triggered after profile save.");
+
+        // Show success message and redirect
         Swal.fire({
           icon: "success",
           title: "Profile Updated!",
-          text: "Wait for Admin Approval...",
+          text: "Your profile details have been saved.", // Updated text
           timer: 2000,
           showConfirmButton: false,
         }).then(() => {
-          router.push("/");
+          // Redirect to dashboard or appropriate page after success
+          // The middleware should now allow this redirect because the session is updated
+          router.push("/ui/dashboard"); // Adjust target route if needed
         });
+        // No need to set isLoading false here as we are redirecting
       } else {
+        // Handle API error response
         Swal.fire({
           icon: "error",
           title: "Update Failed",
           text: resData.message || "Could not update profile. Please try again.",
         });
+        setIsLoading(false); // Set loading false on API error
       }
     } catch (err: any) {
+      // Handle network or unexpected errors
+      console.error("Profile completion error:", err);
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: "An unexpected error occurred. Please try again.",
+        text: "An unexpected error occurred. Please check your connection and try again.",
       });
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Set loading false on exception
     }
   }
 
+  // Loading state for session
   if (status === "loading") {
     return (
       <StartupHeader>
-        <div className="flex justify-center items-center h-screen">
-          <div>Loading session...</div>
+        <div className="flex justify-center items-center min-h-[calc(100vh-64px)]"> {/* Adjust height */}
+          <div>Loading session...</div> {/* Add spinner if desired */}
         </div>
       </StartupHeader>
     );
   }
 
+  // Render the form
   return (
     <StartupHeader>
       <div className="flex flex-grow items-center justify-start w-full px-4 sm:px-8 py-12 md:py-16">
@@ -235,45 +260,38 @@ export default function CompleteProfilePage() {
           </p>
 
           <form onSubmit={handleSubmit} noValidate>
+            {/* First Name / Last Name */}
             <div className="flex flex-col sm:flex-row sm:space-x-4 mb-2">
-              <div className="w-full sm:w-1/2 mb-2 sm:mb-0 text-black">
+              <div className="w-full sm:w-1/2 mb-2 sm:mb-0">
                 <input
                   type="text"
                   name="firstName"
                   placeholder="First name *"
                   value={formData.firstName}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-xl"
+                  className={`${inputBaseClass} ${placeholderClass} ${validationErrors.firstName ? errorBorderClass : ''}`}
                   required
                   disabled={isLoading}
                 />
-                {validationErrors.firstName && (
-                  <p className="text-red-600 text-xs mt-1">
-                    {validationErrors.firstName}
-                  </p>
-                )}
+                {validationErrors.firstName && <p className={errorTextStyles}>{validationErrors.firstName}</p>}
               </div>
-              <div className="w-full sm:w-1/2 text-black">
+              <div className="w-full sm:w-1/2">
                 <input
                   type="text"
                   name="lastName"
                   placeholder="Last name *"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-xl"
+                  className={`${inputBaseClass} ${placeholderClass} ${validationErrors.lastName ? errorBorderClass : ''}`}
                   required
                   disabled={isLoading}
                 />
-                {validationErrors.lastName && (
-                  <p className="text-red-600 text-xs mt-1">
-                    {validationErrors.lastName}
-                  </p>
-                )}
+                {validationErrors.lastName && <p className={errorTextStyles}>{validationErrors.lastName}</p>}
               </div>
             </div>
 
-   {/* Employee Number / Work Position */}
-   <div className="flex flex-col sm:flex-row sm:space-x-4 mb-2">
+            {/* Employee Number / Work Position */}
+            <div className="flex flex-col sm:flex-row sm:space-x-4 mb-2">
                <div className="w-full sm:w-1/2 mb-2 sm:mb-0">
                  <input
                   type="text"
@@ -321,9 +339,10 @@ export default function CompleteProfilePage() {
                  <input
                   type="date"
                   name="birthdate"
-                  placeholder="Birthday *"
+                  placeholder="Birthday *" // Placeholder might not show for type="date"
                   value={formData.birthdate}
                   onChange={handleChange}
+                  // Ensure text color is visible for date input
                   className={`${inputBaseClass} text-gray-700 ${validationErrors.birthdate ? errorBorderClass : ''}`}
                   required
                   disabled={isLoading}
@@ -333,34 +352,37 @@ export default function CompleteProfilePage() {
             </div>
 
             {/* Sex Dropdown */}
-            <div className="mb-4"> {/* Added margin back */}
+            <div className="mb-4">
                 <label htmlFor="sex" className="sr-only">Sex</label>
                 <select
                     id="sex"
                     name="sex"
                     value={formData.sex}
                     onChange={handleChange}
-                    className={`${inputBaseClass} ${validationErrors.sex ? errorBorderClass : ''}`}
+                    className={`${inputBaseClass} ${!formData.sex ? 'text-gray-500' : 'text-black'} ${validationErrors.sex ? errorBorderClass : ''}`} // Style placeholder option
                     required
                     disabled={isLoading}
                 >
-                    <option value="" disabled className="">Select Sex *</option>
+                    <option value="" disabled className="text-gray-500">Select Sex *</option>
                     {sexOptions.map(option => (
-                        <option key={option} value={option}>{option}</option>
+                        <option key={option} value={option} className="text-black">{option}</option>
                     ))}
                 </select>
                 {validationErrors.sex && <p className={errorTextStyles}>{validationErrors.sex}</p>}
             </div>
 
+            {/* Submit Button */}
             <Button
               type="submit"
               variant="primary"
-              className="w-full px-4 py-2 font-semibold rounded-xl shadow-md hover:bg-blue-700 mb-4"
+              className="w-full px-4 py-2.5 font-semibold rounded-xl shadow-md hover:bg-blue-700 mb-2" // Reduced margin-bottom
               isLoading={isLoading}
               disabled={isLoading}
             >
               Save Profile Details
             </Button>
+
+
           </form>
         </div>
       </div>

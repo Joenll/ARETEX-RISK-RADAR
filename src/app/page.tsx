@@ -39,10 +39,17 @@ export default function SignInPage() {
         setError("Invalid email or password.");
         // Optionally show Swal for credentials error here too, if desired
         // Swal.fire({ icon: 'error', title: 'Oops...', text: 'Invalid email or password!' });
-      } else if (errorParam === "Account not approved") {
+      } else if (errorParam === "AccountPending") { // *** Updated check for AccountPending ***
         // --- Show SweetAlert for pending approval from URL param ---
         showPendingApprovalAlert();
         // --- End SweetAlert ---
+      } else if (errorParam === "AccountRejected") { // Handle rejected account from URL
+        setError("Your account has been rejected.");
+        Swal.fire({
+            icon: 'error',
+            title: 'Account Rejected',
+            text: 'Your account access has been rejected. Please contact support if you believe this is an error.',
+        });
       } else if (errorParam === "Callback") {
         setError("There was an issue during the login process. Please try again.");
       } else if (errorParam === "OAuthAccountNotLinked") {
@@ -56,8 +63,10 @@ export default function SignInPage() {
         setError("An unexpected login error occurred.");
         console.error("Login page error param:", errorParam);
       }
+      // Clear the error from the URL to prevent it showing again on refresh
+      router.replace('/', undefined); // Use replace to avoid adding to history
     }
-  }, [searchParams]); // Removed showPendingApprovalAlert from dependencies
+  }, [searchParams, router]); // Added router to dependency array
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,15 +84,14 @@ export default function SignInPage() {
     }
 
     try {
-      const finalCallbackUrl = "/";
-      console.log(`SignInPage: Attempting credentials signIn, callbackUrl: ${finalCallbackUrl}`);
+      const finalCallbackUrl = "/"; // Or determine dynamically if needed
+      console.log(`SignInPage: Attempting credentials signIn`);
 
       // Use redirect: false to handle the response directly here
       const response = await signIn("credentials", {
         email: email,
         password: password,
         redirect: false, // Handle response here instead of auto-redirect
-        // callbackUrl: finalCallbackUrl, // Less relevant with redirect: false
       });
 
       console.log("SignInPage: signIn response:", response);
@@ -91,17 +99,31 @@ export default function SignInPage() {
       if (response?.error) {
         console.error("Sign-in failed:", response.error);
         // Check for specific errors and show alerts
-        if (response.error === "CredentialsSignin") {
+        if (response.error === "CredentialsSignin" || response.error === "InvalidCredentials") { // Check for both possible errors
             setError("Invalid email or password.");
             Swal.fire({
                 icon: 'error',
                 title: 'Login Failed',
                 text: 'Invalid email or password!',
             });
-        } else if (response.error === "Account not approved") {
+        } else if (response.error === "AccountPending") { // *** Updated check for AccountPending ***
             // --- Show SweetAlert for pending approval from direct response ---
             showPendingApprovalAlert();
             // --- End SweetAlert ---
+        } else if (response.error === "AccountRejected") {
+            setError("Your account has been rejected.");
+            Swal.fire({
+                icon: 'error',
+                title: 'Account Rejected',
+                text: 'Your account access has been rejected.',
+            });
+        } else if (response.error === "OAuthAccountNotLinked") {
+             setError("This email is linked to a Google account. Please use Google Sign-In.");
+             Swal.fire({
+               icon: 'warning',
+               title: 'Use Google Sign-In',
+               text: 'This email address is associated with a Google Sign-In. Please use the "Sign in with Google" button.',
+             });
         } else {
             // Handle other errors
             setError("Login failed. Please try again.");
@@ -115,10 +137,9 @@ export default function SignInPage() {
       } else if (response?.ok && !response.error && response.url) {
         // Successful sign-in when redirect: false, manually redirect
         console.log("SignInPage: Credentials sign in successful, redirecting...");
-        // Use the URL provided in the response, or fall back to finalCallbackUrl
         // The response URL might already incorporate middleware redirects
-        router.push(response.url || finalCallbackUrl);
-        // router.refresh(); // Might be needed in some scenarios
+        router.push(response.url);
+        // No need to set loading false here as we are navigating away
       } else {
          // Handle unexpected response structure
          console.error("Unexpected signIn response:", response);
@@ -133,32 +154,34 @@ export default function SignInPage() {
       Swal.fire({ icon: 'error', title: 'Error', text: 'An exception occurred during sign in.' });
       setIsLoading(false);
     }
-    // Removed setIsLoading(false) from here, moved into specific error/success paths
   }
 
   const handleGoogleSignIn = async () => {
     setError("");
     setIsGoogleLoading(true);
     try {
-      const finalCallbackUrl = "/";
-      console.log(`SignInPage: Attempting Google signIn, callbackUrl: ${finalCallbackUrl}`);
+      const finalCallbackUrl = "/"; // Or determine dynamically
+      console.log(`SignInPage: Attempting Google signIn`);
 
-      // For OAuth, usually let NextAuth handle redirects (redirect: true is default)
-      // Errors might still be caught if they happen before the redirect flow starts
-      // or if the callback URL includes an error parameter.
+      // Use redirect: false to catch errors directly
       const response = await signIn("google", {
         callbackUrl: finalCallbackUrl,
-        // redirect: false, // Usually not needed for OAuth, but keep error handling below
+        redirect: false, // Catch errors here
       });
 
-      // This part might only be reached if redirect: false is used,
-      // or if an immediate error occurs before the external redirect.
       if (response?.error) {
         console.error("Google Sign in failed:", response.error);
-        if (response.error === "Account not approved") {
-            // --- Show SweetAlert for pending approval from direct response ---
+        // *** Check for AccountPending error ***
+        if (response.error === "AccountPending") {
             showPendingApprovalAlert();
-            // --- End SweetAlert ---
+        // *** End Check ***
+        } else if (response.error === "AccountRejected") {
+            setError("Your account has been rejected.");
+            Swal.fire({
+                icon: 'error',
+                title: 'Account Rejected',
+                text: 'Your account access has been rejected.',
+            });
         } else if (response.error === "OAuthAccountNotLinked") {
             setError("This email is already associated with an account created using a different method. Try logging in with your original method.");
             Swal.fire({
@@ -174,9 +197,19 @@ export default function SignInPage() {
                 text: 'Could not sign in with Google. Please try again.',
             });
         }
-        setIsGoogleLoading(false);
+        setIsGoogleLoading(false); // Stop loading on error
+      } else if (response?.ok && response.url) {
+          // If redirect: false and sign-in is OK, manually navigate
+          console.log("Google Sign in successful (redirect:false), redirecting...");
+          router.push(response.url);
+          // No need to set loading false here
+      } else if (!response?.ok && !response?.error) {
+          // Handle cases where the sign-in might have been cancelled or closed by the user
+          // Often, no explicit error is returned, just response.ok is false/null
+          console.log("Google Sign in cancelled or closed by user.");
+          setIsGoogleLoading(false); // Stop loading
       }
-      // If redirect: true (default), successful Google sign-in will navigate away.
+      // If redirect: true (default), successful Google sign-in will navigate away automatically.
 
     } catch (err) {
       console.error("Exception during Google sign in:", err);
@@ -184,7 +217,6 @@ export default function SignInPage() {
       Swal.fire({ icon: 'error', title: 'Error', text: 'An exception occurred during Google Sign-In.' });
       setIsGoogleLoading(false);
     }
-    // No need for setIsGoogleLoading(false) here if the page redirects on success
   };
 
   return (
