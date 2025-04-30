@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google"; // Assuming you use Geist fonts
+import { Geist, Geist_Mono } from "next/font/google"; //
 import "./globals.css";
 // Removed Navbar import as it's likely rendered in a nested layout (like UILayout)
 import Providers from "./components/Providers"; // Import the Providers component
@@ -18,6 +18,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Aretex Risk Radar", // Updated title
   description: "Crime Mapping and Analysis", // Updated description
+  icons: {
+    icon: "/riskradar1.png", 
+  },
 };
 
 export default function RootLayout({
