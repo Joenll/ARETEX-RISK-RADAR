@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CrimeAtlas", // Updated title
+  title: "Aretex Risk Radar", // Updated title
   description: "Crime Mapping and Analysis", // Updated description
 };
 

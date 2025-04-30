@@ -9,7 +9,7 @@ import Button from '@/app/components/Button'; // Assuming Button component exist
 import Swal from 'sweetalert2'; // Import SweetAlert2
 
 // --- Define possible sex values for the dropdown ---
-const sexOptions: UserSex[] = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const sexOptions: UserSex[] = ['Male', 'Female'];
 
 // Define a type for the fetched data structure
 interface UserWithProfile extends Omit<IUser, 'profile' | 'password'> {

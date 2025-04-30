@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     // Validate sex value
-    const validSexValues: UserSex[] = ["Male", "Female", "Other", "Prefer not to say"];
+    const validSexValues: UserSex[] = ["Male", "Female"];
     if (!sex || !validSexValues.includes(sex)) {
       console.warn(`[API CompleteProfile] Validation failed for user ID ${userId}: Invalid sex value - ${sex}`);
       await mongooseSession.abortTransaction();

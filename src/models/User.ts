@@ -71,42 +71,26 @@ const UserSchema = new Schema<IUser>(
       type: String, // Optional name field for convenience
       trim: true,
     },
+    // --- Explicitly define createdAt with a default ---
+    // Although timestamps: true should handle this, we add a default
+    // as a workaround for the adapter's initial creation issue.
+    createdAt: {
+      type: Date,
+      default: Date.now, // Set default value to the current time
+      // immutable: true, // Optional: prevent future updates to createdAt
+    },
+    // --- updatedAt will still be handled by timestamps: true ---
   },
   {
-    timestamps: true, // Automatically manage createdAt and updatedAt fields
+    timestamps: true, // Keep this - it handles updatedAt and potentially createdAt on updates
   }
 );
 
-// --- Mongoose Pre-Save Hook for Auto-Approval ---
-UserSchema.pre<IUser>("save", function (next) {
-  console.log(`[Pre-Save Hook] Running for user: ${this.email}, isNew: ${this.isNew}`);
-
-  // Check only if the document is new (being created)
-  if (this.isNew) {
-    // --- Likely Correction Needed Here ---
-    const autoApproveDomain = "aretex@gmail.com"; // Check for the domain suffix
-    // --- End Correction ---
-
-    console.log(`[Pre-Save Hook] Checking NEW user email: "${this.email}" against domain suffix: "${autoApproveDomain}"`);
-
-    // Check if email ends with the specified domain (case-insensitive)
-    const emailToCheck = this.email?.toLowerCase() || ""; // Ensure email exists and is lowercase
-    const endsWithDomain = emailToCheck.endsWith(autoApproveDomain);
-    console.log(`[Pre-Save Hook] Does email end with domain suffix? ${endsWithDomain}`);
-
-    if (endsWithDomain) {
-      console.log(`[Pre-Save Hook] MATCH FOUND! Setting status to 'approved' for ${this.email}`);
-      this.status = "approved"; // Set status to approved
-    } else {
-      // Status defaults to 'pending' as defined in the schema, so no need to explicitly set it here
-      console.log(`[Pre-Save Hook] Email does not match auto-approve domain suffix. Status remains default: ${this.status}`);
-    }
-  } else {
-    console.log(`[Pre-Save Hook] Skipping status check for existing user.`);
-  }
-
-  next(); // Continue with the save operation
-});
+// --- Mongoose Pre-Save Hook (Commented Out for Testing) ---
+// UserSchema.pre<IUser>("save", function (next) {
+//   // ... hook logic ...
+//   next();
+// });
 // --- END: Pre-Save Hook ---
 
 
