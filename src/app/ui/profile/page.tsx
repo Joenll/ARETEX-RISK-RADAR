@@ -650,7 +650,7 @@ export default function ProfilePage() {
               </button>
             </div>
             <form onSubmit={handlePasswordSubmit} className="p-6" noValidate> {/* Added noValidate */}
-              <div className="space-y-4">
+              <div className="space-y-4 text-black" >
                 {/* Current Password */}
                 <div>
                   <label htmlFor="currentPasswordModal" className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
