@@ -34,6 +34,12 @@ const isValidPositionOrTeam = (text: string): boolean => {
     return /^[A-Za-z0-9\s,-]+$/.test(text);
 };
 
+// --- Password Complexity Regex (from backend) ---
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+const passwordRequirementsMessage =
+  "Password must be 8+ characters with uppercase, lowercase, number, and special character (@$!%*?&).";
+
 // --- Type for Validation Errors State ---
 type ValidationErrors = {
     [key in keyof typeof initialFormData]?: string;
@@ -85,6 +91,8 @@ export default function AddUserPage() {
       setValidationErrors(prev => ({ ...prev, [name]: undefined }));
     }
   };
+
+  
   // --- END UPDATED handleChange ---
 
   // --- Validation Function (remains the same) ---
@@ -109,6 +117,12 @@ export default function AddUserPage() {
     if (formData.password && formData.password.length < 6) {
       errors.password = 'Password must be at least 6 characters long.';
     }
+
+       // Password complexity
+       if (formData.password && !passwordRegex.test(formData.password)) {
+        errors.password = passwordRequirementsMessage;
+      }
+
 
     // Password match
     if (formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword) {
