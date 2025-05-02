@@ -537,13 +537,10 @@ export default function AdminDashBoardPage() {
 
               {/* Section: Predictions */}
               <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Crime Predictions</h1>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
                 <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-                  <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
-                    <FaBrain className="mr-2 text-purple-600" />
-                    Crime Trend Forecast
-                  </h2>
-                  <div className="relative h-[550px] flex-grow">
+
+                  <div className="relative h-[750px] flex-grow">
                     <PredictionCharts
                       endpointPath="/api/forecast/crime-trend"
                       title="Crime Trend Forecast Chart"
@@ -552,11 +549,8 @@ export default function AdminDashBoardPage() {
                   </div>
                 </div>
                 <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-                  <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
-                    <FaBrain className="mr-2 text-purple-600" />
-                    Top Predicted Locations
-                  </h2>
-                  <div className="relative h-[500px] flex-grow">
+
+                  <div className="relative h-[700px] flex-grow">
                     <PredictionCharts
                       endpointPath="/api/forecast/top-locations"
                       title="Top Predicted Locations Chart"
@@ -574,7 +568,7 @@ export default function AdminDashBoardPage() {
           {dashboardViewMode === 'charts' && (
             <>
               {/* Row 1: Pie Chart & Bar Chart */}
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">User & Location Charts</h1>
+              <h1 className="text-xl font-bold text-gray-800 mb-2">Users, Crime Report & Location Charts</h1>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Pie Chart Container */}
                   <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
@@ -639,7 +633,7 @@ export default function AdminDashBoardPage() {
 
               {/* Row 2: Line Chart & Prediction 1 */}
               <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Report Trends & Predictions</h1>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
                   {/* Line Chart Container */}
                   <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
                       <div className="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0">
@@ -657,12 +651,8 @@ export default function AdminDashBoardPage() {
 
                   {/* Prediction 1 Container (Trend Forecast) */}
                   <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-                    <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
-                      <FaBrain className="mr-2 text-purple-600" />
-                      Crime Trend Forecast
-                    </h2>
                     {/* Adjusted height to match Line Chart */}
-                    <div className="relative h-96 flex-grow">
+                    <div className="relative h-190 flex-grow">
                       <PredictionCharts
                         endpointPath="/api/forecast/crime-trend"
                         title="Crime Trend Forecast Chart"
@@ -676,12 +666,8 @@ export default function AdminDashBoardPage() {
               <div className="grid grid-cols-1 gap-6 mt-6"> {/* Added mt-6 for spacing */}
                   {/* Prediction 2 Container (Top Locations) */}
                   <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-                    <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
-                      <FaBrain className="mr-2 text-purple-600" />
-                      Top Predicted Locations
-                    </h2>
                     {/* Height can be adjusted as needed */}
-                    <div className="relative h-[500px] flex-grow">
+                    <div className="relative h-[700px] flex-grow">
                       <PredictionCharts
                         endpointPath="/api/forecast/top-locations"
                         title="Top Predicted Locations Chart"
