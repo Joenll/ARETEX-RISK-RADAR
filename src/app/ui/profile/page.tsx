@@ -153,10 +153,18 @@ export default function ProfilePage() {
   // --- Profile Picture Handlers ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']; // Define allowed types
       const file = e.target.files[0];
-      // Basic validation (optional: add more checks like file size, type)
+
+      // --- Frontend Validation ---
       if (file.size > 5 * 1024 * 1024) { // 5MB limit example
           Swal.fire('File Too Large', 'Please select an image smaller than 5MB.', 'warning');
+          e.target.value = ''; // Clear the input
+          return;
+      }
+      if (!allowedTypes.includes(file.type)) {
+          Swal.fire('Invalid File Type', 'Please select a valid image file (JPEG, PNG, GIF, WEBP).', 'warning');
+          e.target.value = ''; // Clear the input
           return;
       }
       setSelectedFile(file);
