@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
 
     // 1. Authentication Check (Adjust based on your session structure: id, _id, or sub)
-    const userId = session?.user?.id || session?.user?._id || session?.sub;
+    const userId = session?.user?.id;
     if (!userId) {
         console.warn("[API upload-picture] Unauthorized access attempt.");
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
