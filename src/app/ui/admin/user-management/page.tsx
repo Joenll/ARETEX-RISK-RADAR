@@ -11,7 +11,7 @@ import Swal from 'sweetalert2'; // Import SweetAlert2
 // Define a combined type for the user data we expect from the API
 interface UserWithProfile extends Omit<IUser, 'profile' | 'password'> {
     _id: string;
-    profile: Pick<IUserProfile, 'firstName' | 'lastName' | 'employeeNumber' | 'workPosition' | 'team' | 'sex'> | null;
+    profile: Pick<IUserProfile, 'firstName' | 'lastName' | 'employeeNumber' | 'workPosition' | 'team' | 'sex' | 'profilePictureUrl'> | null; // Added profilePictureUrl
     status: 'pending' | 'approved' | 'rejected';
     role: 'admin' | 'user'; // Match the expected role types
     email: string; // Ensure email is included
@@ -413,6 +413,14 @@ export default function UserManagementPage() {
     const paginationItems = getPaginationItems(currentPage, totalPages);
 
     //----  UI PART ------
+    // --- Helper to get initials ---
+    const getInitials = (firstName?: string, lastName?: string, email?: string): string => {
+        const first = firstName?.[0]?.toUpperCase() || '';
+        const last = lastName?.[0]?.toUpperCase() || '';
+        if (first && last) return `${first}${last}`;
+        return email?.[0]?.toUpperCase() || '?';
+    };
+
     return (
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
             {/* Title and Subtitle */}
@@ -578,6 +586,7 @@ export default function UserManagementPage() {
                                         disabled={isLoading}
                                     />
                                 </th>
+                                <th className="px-2 py-2 w-10"></th>
                                 <th className="px-2 py-2 w-1/5">Name</th>
                                 <th className="px-2 py-2 w-1/5">Email</th>
                                 <th className="px-2 py-2 w-16">Sex</th>
@@ -591,7 +600,8 @@ export default function UserManagementPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {paginatedUsers.map((user) => {
-                                const userName = user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.email;
+                                const userName = user.profile ? `${user.profile.firstName} ${user.profile.lastName}`.trim() : user.email; // Added trim
+                                const userInitials = getInitials(user.profile?.firstName, user.profile?.lastName, user.email);
                                 const isActionLoading = actionLoading[user._id] || false;
                                 const isSelected = selectedUserIds.has(user._id);
                                 const isDisabled = isActionLoading || isLoading;
@@ -599,8 +609,8 @@ export default function UserManagementPage() {
                                 const canReject = user.status !== 'rejected';
 
                                 return (
-                                    <tr key={user._id} className={`border-t border-gray-200 hover:bg-gray-50 ${isSelected ? 'bg-indigo-50' : ''}`}>
-                                        <td className="px-1 py-2 relative">
+                                    <tr key={user._id} className={`border-t border-gray-200 hover:bg-gray-50 ${isSelected ? 'bg-indigo-50' : ''}`}>{/* Ensure no whitespace before first td */}
+                                        <td className="px-1 py-2 relative">{/* Ensure no whitespace before content */}
                                             {isSelected && <div className="absolute inset-y-0 left-0 w-0.5 bg-indigo-600"></div>}
                                             <input
                                                 type="checkbox"
@@ -610,6 +620,19 @@ export default function UserManagementPage() {
                                                 value={user._id}
                                                 disabled={isLoading}
                                             />
+                                        </td>
+                                        {/* Avatar Cell */}<td className="px-2 py-2">{/* Ensure no whitespace */}
+                                            <div className="w-8 h-8 rounded-full border border-gray-300 overflow-hidden flex items-center justify-center bg-blue-500 text-white text-xs font-semibold">
+                                                {user.profile?.profilePictureUrl ? (
+                                                    <img
+                                                        src={user.profile.profilePictureUrl}
+                                                        alt={userName}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <span>{userInitials}</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900 truncate">{user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : 'N/A'}</td>
                                         <td className="px-2 py-2 text-sm text-gray-500 truncate">{user.email}</td>
@@ -626,7 +649,7 @@ export default function UserManagementPage() {
                                         <td className="px-1 py-2 whitespace-nowrap text-center text-sm font-medium">
                                             {isActionLoading ? (
                                                 <span className="text-xs text-gray-500">Processing...</span>
-                                            ) : (
+                                            ) : (/* Ensure no whitespace */
                                                 <div className="flex justify-center items-center space-x-3">
                                                     <button
                                                         onClick={() => handleEdit(user._id)}

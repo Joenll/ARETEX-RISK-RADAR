@@ -66,7 +66,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .populate<{ profile: typeof UserProfile }>({
         path: "profile",
         model: UserProfile,
-        select: 'firstName lastName employeeNumber workPosition team sex birthdate',
+        select: 'firstName lastName employeeNumber workPosition team sex birthdate profilePictureUrl', // <-- Added profilePictureUrl
       })
       .select("-password")
       .sort(sortOptions); // Apply sorting
