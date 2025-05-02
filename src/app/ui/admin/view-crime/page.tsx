@@ -471,7 +471,7 @@ export default function CrimeReportList() {
                 selected={filterStartDate}
                 onChange={handleStartDateChange}
                 placeholderText="Start Date"
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-gray-900 placeholder:text-gray-800"
+                className="px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-[130px] text-gray-900 placeholder:text-gray-800"
                 isClearable
                 disabled={isLoading}
                 aria-label="Filter start date"
@@ -482,7 +482,7 @@ export default function CrimeReportList() {
                 selected={filterEndDate}
                 onChange={handleEndDateChange}
                 placeholderText="End Date"
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-gray-900 placeholder:text-gray-800"
+                className="px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-[130px] text-gray-900 placeholder:text-gray-800"
                 isClearable
                 disabled={isLoading}
                 aria-label="Filter end date"
