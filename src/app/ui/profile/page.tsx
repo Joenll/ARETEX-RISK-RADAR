@@ -84,6 +84,7 @@ export default function ProfilePage() {
   // --- NEW: State for Image Modal ---
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
 
   // --- Fetch User Profile ---
   useEffect(() => {
@@ -573,7 +574,7 @@ export default function ProfilePage() {
       {/* Profile Card */}
       <div className={`bg-white rounded-lg shadow-md p-8 max-w-4xl mx-auto ${isChangingPassword ? 'hidden' : 'block'}`}>
         <div className="flex flex-col items-center mb-8 relative"> {/* Added relative here */}
-          {/* Profile Picture Display & Upload - Added onClick */}
+          {/* Profile Picture Display (Click to Enlarge) */}
           <div className="relative h-24 w-24 mb-4 rounded-full border-2 border-orange-500 overflow-hidden group cursor-pointer" onClick={handleImageClick}> {/* Added cursor-pointer and onClick */}
             <img
               src={previewUrl || currentProfilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3b82f6&color=fff&size=96`} // Use preview, then current, then placeholder/initials
@@ -581,21 +582,23 @@ export default function ProfilePage() {
               className="w-full h-full object-cover"
               title="Click to enlarge" // Add title attribute
             />
-            {/* Upload Overlay - Show only in edit mode */}
+            {/* Optional: Keep hover effect if desired */}
             {isEditing && (
-              <label htmlFor="profilePictureInput" className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity duration-200 cursor-pointer">
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity duration-200 pointer-events-none"> {/* Removed label functionality */}
                 <FaCamera className="text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                <input
-                  id="profilePictureInput"
-                  type="file"
-                  accept="image/jpeg, image/png, image/gif, image/webp" // Specify acceptable image types
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" // Hide the default input
-                  disabled={isLoading || isUploading} // Disable during uploads
-                />
-              </label>
+              </div>
             )}
           </div>
+          {/* Hidden File Input */}
+          <input
+            id="profilePictureInput"
+            ref={fileInputRef} // Assign the ref
+            type="file"
+            accept="image/jpeg, image/png, image/gif, image/webp"
+            onChange={handleFileChange}
+            className="hidden" // Keep it hidden
+            disabled={isLoading || isUploading}
+          />
           {/* Loading indicator for image upload */}
           {/* --- NEW: "See Photo" Button --- */}
           {isEditing && previewUrl && (
@@ -605,6 +608,17 @@ export default function ProfilePage() {
               className="mt-2 px-2 py-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-colors"
             >
               See selected photo
+            </button>
+          )}
+          {/* --- NEW: "Upload Photo" Button --- */}
+          {isEditing && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()} // Trigger file input click
+              className="mt-2 px-3 py-1.5 text-sm text-white bg-orange-500 rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-400 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              disabled={isLoading || isUploading}
+            >
+              <FaCamera /> {previewUrl ? 'Change Photo' : 'Upload Photo'} {/* Change text based on preview */}
             </button>
           )}
           {isUploading && <p className="text-xs text-blue-600 mt-1">Uploading image...</p>}
