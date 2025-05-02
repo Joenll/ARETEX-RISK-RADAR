@@ -9,7 +9,8 @@ import {
     FaFilter, FaChevronDown, FaChartLine, FaChartBar, FaMapMarkedAlt, FaMale, FaFemale,
     FaQuestionCircle, FaGenderless, FaSpinner, FaCheckCircle, FaHourglassHalf,
     FaBrain, // Icon for Predictions
-    FaCloudSun, FaMap // Added FaMap for Crime Map button
+    FaCloudSun, FaMap, // Added FaMap for Crime Map button
+    FaEye, FaChartPie, FaMapPin // Icons for view switch
 } from 'react-icons/fa';
 
 // --- Import Components ---
@@ -34,10 +35,12 @@ type LocationGroupByType = 'municipality_city' | 'barangay' | 'province';
 interface GenderCount { gender: string | null; count: number; }
 interface StatusCount { status: string; count: number; }
 type MapType = 'heat' | 'hotspot' | 'status';
+type DashboardViewMode = 'all' | 'charts' | 'visualizations';
+
 
 // --- Helper components (UserList, formatDate) ---
 
-// UserList component
+// UserList component (remains the same)
 const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Icon, iconColor }: {
     title: string;
     users: UserListItem[];
@@ -89,7 +92,7 @@ const UserList = ({ title, users, isLoading, error, emptyMessage, link, icon: Ic
     </div>
 );
 
-// formatDate function
+// formatDate function (remains the same)
 const formatDate = (dateString: string | Date): string => {
   try {
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
@@ -140,6 +143,8 @@ export default function AdminDashBoardPage() {
   const [availableLocationYears, setAvailableLocationYears] = useState<number[]>([]);
   const [isLoadingLocationYears, setIsLoadingLocationYears] = useState(true);
   const [activeGeospatialView, setActiveGeospatialView] = useState<'crime' | 'weather'>('crime'); // State for map/weather view
+  const [dashboardViewMode, setDashboardViewMode] = useState<DashboardViewMode>('all');
+
 
   // --- Map Endpoints & Legends ---
   const mapEndpoints: Record<MapType, string> = { heat: '/api/heatmap', hotspot: '/api/hotspot-map', status: '/api/status-map' };
@@ -147,8 +152,7 @@ export default function AdminDashBoardPage() {
   const heatmapLegend = [ { color: 'bg-blue-500', label: 'Low Risk' }, { color: 'bg-green-500', label: 'Moderate Risk' }, { color: 'bg-yellow-400', label: 'Medium Risk' }, { color: 'bg-red-500', label: 'High Risk' }, { color: 'bg-red-800', label: 'Very High Risk' } ];
   const hotspotMapLegend = [ { color: 'bg-red-600', label: 'Indicates areas with a higher probability of future crime incidents.' } ];
 
-  // --- useEffect hooks for data fetching ---
-
+  // --- useEffect hooks for data fetching (remain the same) ---
   // Fetch Trend Data (Line Chart)
   useEffect(() => {
     const fetchTrendData = async () => {
@@ -332,9 +336,11 @@ export default function AdminDashBoardPage() {
   const handleLocationYearChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedLocationYear(event.target.value);
   }, []);
-  // --- NEW: Handler for switching between Crime Map and Weather Map ---
   const handleGeospatialViewChange = (view: 'crime' | 'weather') => {
     setActiveGeospatialView(view);
+  };
+  const handleDashboardViewChange = (mode: DashboardViewMode) => {
+    setDashboardViewMode(mode);
   };
 
   // --- Determine Chart Titles ---
@@ -371,233 +377,401 @@ export default function AdminDashBoardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">Admin Dashboard</h1>
+      <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
+        <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
 
-      {/* Section: Top Counts & Pie Chart */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Total Users Card */}
-        <div className="bg-white p-6 md:p-8 lg:p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
-            <div>
-                <div className="mb-3"> <FaUsers className={`mx-auto text-4xl mb-2 text-blue-600`} /> <h2 className="text-lg font-semibold text-gray-700"> Total Users </h2> </div>
-                <div> {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>} {(errorCounts || errorGenderCounts) && !isLoadingCounts && !isLoadingGenderCounts && ( <p className="text-red-500 text-sm">{errorCounts || errorGenderCounts}</p> )} {!isLoadingCounts && !errorCounts && totalUserCount !== null && ( <p className={`text-5xl font-bold text-blue-600`}>{totalUserCount}</p> )} {!isLoadingCounts && !errorCounts && totalUserCount === null && ( <p className="text-5xl font-bold text-gray-400">-</p> )} </div>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap justify-around items-center text-sm text-gray-600 gap-y-2">
-                <div className="text-center px-1 min-w-[60px]"> <FaMale className="mx-auto text-xl text-blue-500 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Male')}</span> <span className="block text-xs">Male</span> </div>
-                <div className="text-center px-1 min-w-[60px]"> <FaFemale className="mx-auto text-xl text-pink-500 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Female')}</span> <span className="block text-xs">Female</span> </div>
-                { !isLoadingGenderCounts && !errorGenderCounts && typeof getGenderCount('Other') === 'number' && Number(getGenderCount('Other')) > 0 && (
-                     <div className="text-center px-1 min-w-[60px]"> <FaGenderless className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Other')}</span> <span className="block text-xs">Other</span> </div>
-                )}
-                 { !isLoadingGenderCounts && !errorGenderCounts && typeof getGenderCount('') === 'number' && Number(getGenderCount('')) > 0 && (
-                     <div className="text-center px-1 min-w-[60px]"> <FaQuestionCircle className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('')}</span> <span className="block text-xs">Unknown</span> </div>
-                )}
-            </div>
-        </div>
-
-        {/* Total Reports Card */}
-        <div className="bg-white p-6 md:p-8 lg:p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
-             <div>
-                <div className="mb-3"> <FaFileAlt className={`mx-auto text-4xl mb-2 text-orange-600`} /> <h2 className="text-lg font-semibold text-gray-700"> Total Reports </h2> </div>
-                <div> {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>} {(errorCounts || errorStatusCounts) && !isLoadingCounts && !isLoadingStatusCounts && ( <p className="text-red-500 text-sm">{errorCounts || errorStatusCounts}</p> )} {!isLoadingCounts && !errorCounts && reportCount !== null && ( <p className={`text-5xl font-bold text-orange-600`}>{reportCount}</p> )} {!isLoadingCounts && !errorCounts && reportCount === null && ( <p className="text-5xl font-bold text-gray-400">-</p> )} </div>
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap justify-around items-center text-sm text-gray-600 gap-y-2">
-                <div className="text-center px-1 min-w-[60px]"> <FaSpinner className="mx-auto text-xl text-blue-500 mb-1 animate-spin" /> <span className="font-medium block text-lg">{getStatusCount('Ongoing')}</span> <span className="block text-xs">Ongoing</span> </div>
-                <div className="text-center px-1 min-w-[60px]"> <FaHourglassHalf className="mx-auto text-xl text-yellow-500 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Pending')}</span> <span className="block text-xs">Pending</span> </div>
-                <div className="text-center px-1 min-w-[60px]"> <FaCheckCircle className="mx-auto text-xl text-green-500 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Resolved')}</span> <span className="block text-xs">Resolved</span> </div>
-                 { !isLoadingStatusCounts && !errorStatusCounts && typeof getStatusCount('Unknown') === 'number' && Number(getStatusCount('Unknown')) > 0 && (
-                     <div className="text-center px-1 min-w-[60px]"> <FaQuestionCircle className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Unknown')}</span> <span className="block text-xs">Unknown</span> </div>
-                )}
-            </div>
-        </div>
-
-        {/* Pie Chart */}
-        <div className="md:col-span-2 lg:col-span-1">
-            <PieChart approvedCount={approvedUserCount} pendingCount={pendingUserCount} rejectedCount={rejectedUserCount} isLoading={isLoadingCounts} error={errorCounts ? 'Error loading chart data' : null} />
-        </div>
-      </div>
-
-      {/* Section: User Lists & Quick Links */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         <UserList title="Recent Pending Users"  users={pendingUsers} isLoading={isLoadingPending} error={errorPending} emptyMessage="No pending users found." link="/ui/admin/user-management?status=pending" icon={FaUserClock} iconColor="text-yellow-600" />
-         <UserList title="Recent Rejected Users" users={rejectedUsers} isLoading={isLoadingRejected} error={errorRejected} emptyMessage="No rejected users found." link="/ui/admin/user-management?status=rejected" icon={FaUserTimes} iconColor="text-red-600" />
-         <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full">
-             <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Links</h2>
-             <div className="space-y-3">
-                 <Link href="/ui/admin/user-management" className="flex items-center p-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm"><FaUsers className="mr-3 text-blue-500" /><span>Manage Users</span></Link>
-                 <Link href="/ui/admin/view-crime" className="flex items-center p-3 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors text-sm"><FaFileAlt className="mr-3 text-orange-500" /><span>View Crime Reports</span></Link>
-                 <Link href="/ui/admin/user-management/add-user" className="flex items-center p-3 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm"><FaUserPlus className="mr-3 text-green-500" /><span>Add New User</span></Link>
-                 <Link href="/ui/admin/add-crime" className="flex items-center p-3 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm"><FaPlusSquare className="mr-3 text-purple-500" /><span>Add New Crime Report</span></Link>
-             </div>
-         </div>
-      </div>
-
-     {/* --- Section: Line Chart & Bar Chart Side-by-Side --- */}
-     <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Report Charts</h1>
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Line Chart Container */}
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-gray-700 mb-2 sm:mb-0 flex items-center"> <FaChartLine className="mr-2 text-indigo-600" /> {lineChartTitle} </h2>
-                <div className="flex justify-center space-x-1 sm:space-x-2">
-                    {(['yearly', 'monthly', 'weekly'] as TrendType[]).map((type) => (
-                        <button key={type} onClick={() => handleTrendTypeChange(type)} disabled={isLoadingTrend} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ selectedTrendType === type ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} > {type.charAt(0).toUpperCase() + type.slice(1)} </button>
-                    ))}
-                </div>
-            </div>
-            <div className="relative h-96 flex-grow">
-                <LineChartReports data={reportTrendData} isLoading={isLoadingTrend} error={errorTrend} dataType={selectedTrendType} />
-            </div>
-        </div>
-
-        {/* Bar Chart Container */}
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0 gap-2">
-                <h2 className="text-lg font-semibold text-gray-700 flex items-center mr-2">
-                    <FaChartBar className="mr-2 text-teal-600" />
-                    {barChartTitle}
-                </h2>
-                <div className="flex flex-wrap justify-end items-center gap-2">
-                    <div className="flex justify-center space-x-1 sm:space-x-2">
-                        {(['province','municipality_city', 'barangay'] as LocationGroupByType[]).map((type) => (
-                            <button key={type} onClick={() => handleLocationGroupByChange(type)} disabled={isLoadingTopLocation} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ locationGroupBy === type ? 'bg-teal-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} >
-                                {type === 'municipality_city' ? 'City/Mun' : type === 'province' ? 'Province' : 'Brgy'}
-                            </button>
-                        ))}
-                    </div>
-                     <div className="flex-shrink-0 text-black">
-                        <label htmlFor="locationYearSelect" className="sr-only">Select Year</label>
-                        <select
-                            id="locationYearSelect"
-                            value={selectedLocationYear}
-                            onChange={handleLocationYearChange}
-                            disabled={isLoadingTopLocation || isLoadingLocationYears || availableLocationYears.length === 0}
-                            className="block w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-xs sm:text-sm disabled:opacity-50"
-                        >
-                            <option value="all">All Time</option>
-                            {availableLocationYears.map(year => (
-                                <option key={year} value={year.toString()}>
-                                    {year}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div className="relative h-96 flex-grow">
-                {isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading Chart...</div>}
-                {errorTopLocation && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-red-500 p-4 text-center">Error: {errorTopLocation}</div>}
-                {!isLoadingTopLocation && !errorTopLocation && (
-                    <BarChart
-                        data={topLocationChartData}
-                        yAxisLabel="Number of Reports"
-                        xAxisLabel={ locationGroupBy === 'barangay' ? 'Barangay' : locationGroupBy === 'province' ? 'Province' : 'Municipality/City' }
-                        datasetLabel={`Reports (${selectedLocationYear === 'all' ? 'All Time' : selectedLocationYear})`}
-                    />
-                )}
-                 {isLoadingLocationYears && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">Loading available years...</div>}
-            </div>
-        </div>
-    </div>
-
-    {/* --- Section: Predictions --- */}
-    <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Crime Predictions</h1>
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-        <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
-          <FaBrain className="mr-2 text-purple-600" />
-          Crime Trend Forecast
-        </h2>
-        <div className="relative h-[550px] flex-grow">
-          <PredictionCharts
-            endpointPath="/api/forecast/crime-trend"
-            title="Crime Trend Forecast Chart"
-            className="w-full h-full"
-          />
-        </div>
-      </div>
-      <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
-        <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
-           <FaBrain className="mr-2 text-purple-600" />
-           Top Predicted Locations
-        </h2>
-         <div className="relative h-[500px] flex-grow">
-          <PredictionCharts
-            endpointPath="/api/forecast/top-locations"
-            title="Top Predicted Locations Chart"
-            className="w-full h-full"
-          />
-        </div>
-      </div>
-    </div>
-
-    {/* Section: Crime Map Visualizations */}
-    <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Geospatial Analysis/Weather Forecast</h1>
-    <div className="bg-white p-4 rounded-lg shadow border border-gray-200 ">
-      {/* --- Controls Row --- */}
-      {/* Changed justify-between to justify-end */}
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-4">
-        {/* Crime Map Filter (Conditional) - Moved to the start */}
-        {activeGeospatialView === 'crime' && (
-          /* Added mr-auto to push this element to the left */
-          <div className="relative mr-auto" ref={mapFilterDropdownRef}>             <button onClick={() => setIsMapFilterOpen(!isMapFilterOpen)} className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${ isMapFilterOpen ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-800 hover:bg-indigo-500 hover:text-white" }`}>
-              <FaFilter className="mr-2" />{formatMapName(activeMap)}<FaChevronDown className={`ml-2 transition-transform duration-200 ${isMapFilterOpen ? 'rotate-180' : ''}`} />
+        {/* --- Dashboard View Mode Switch --- */}
+        <div className="flex items-center space-x-2 bg-gray-200 p-1 rounded-lg">
+          {(['all', 'charts', 'visualizations'] as DashboardViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => handleDashboardViewChange(mode)}
+              className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 ${
+                dashboardViewMode === mode
+                  ? 'bg-white text-blue-600 shadow'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+              disabled={dashboardViewMode === mode}
+            >
+              {mode === 'all' && <FaEye className="mr-1.5" />}
+              {mode === 'charts' && <FaChartPie className="mr-1.5" />}
+              {mode === 'visualizations' && <FaMapPin className="mr-1.5" />}
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
             </button>
-            {isMapFilterOpen && ( <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20"><ul className="py-1">{(['heat', 'hotspot', 'status'] as MapType[]).map((mapType) => ( <li key={mapType}><button onClick={() => handleMapSelect(mapType)} className={`w-full text-left px-4 py-2 text-sm transition-colors ${ activeMap === mapType ? "bg-gray-100 text-orange-500 font-medium" : "text-gray-700 hover:bg-gray-100 hover:text-orange-500" }`}>{formatMapName(mapType)}</button></li> ))}</ul></div> )}
-          </div>
-        )}
-
-        {/* View Switch Buttons - Kept at the end (justify-end will place them correctly) */}
-        <div className="flex space-x-2">
-          <button
-            onClick={() => handleGeospatialViewChange('crime')}
-            className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
-              activeGeospatialView === 'crime'
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
-            }`}
-          >
-            <FaMap className="mr-2" /> Crime Map
-          </button>
-          <button
-            onClick={() => handleGeospatialViewChange('weather')}
-            className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
-              activeGeospatialView === 'weather'
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
-            }`}
-          >
-            <FaCloudSun className="mr-2" /> Weather
-          </button>
+          ))}
         </div>
+        {/* --- END Dashboard View Mode Switch --- */}
       </div>
 
-       <div className="bg-gray-50 p-4 rounded-lg">
-          {/* --- Dynamic Title --- */}
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            {activeGeospatialView === 'crime' ? `Crime Map: ${formatMapName(activeMap)}` : 'Weather Forecast'}
-          </h2>
-          {/* Adjusted height: base height increased, md height set to 780px */}
-          <div className="w-full h-[600px] md:h-[780px] bg-white rounded-lg overflow-hidden shadow-inner">
-            {/* --- Conditional Rendering of Map/Weather --- */}
-            {activeGeospatialView === 'crime' && (
-              <CrimeMap
-                key={activeMap} // Keep key for re-rendering CrimeMap on type change
-                endpointPath={mapEndpoints[activeMap]}
-                className="w-full h-full"
-                legendTitle={currentLegend.title}
-                legendItems={currentLegend.items}
-              />
-            )}
-            {activeGeospatialView === 'weather' && (
-              <WeatherMap
-                key="weather-map" // Add a key for consistency
-                endpointPath="/api/generate-weather"
-                title="Weather Forecast" // Consistent title
-                className="relative w-full h-full flex-grow" // Ensure it fills the container
-              />
-            )}
+
+      {/* --- Conditional Rendering for Charts Sections --- */}
+      {(dashboardViewMode === 'all' || dashboardViewMode === 'charts') && (
+        <>
+          {/* --- 'All' Mode Layout --- */}
+          {dashboardViewMode === 'all' && (
+            <>
+              {/* Section: Top Counts & Pie Chart */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Total Users Card */}
+                  <div className="bg-white p-6 md:p-8 lg:p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
+                      <div>
+                          <div className="mb-3"> <FaUsers className={`mx-auto text-4xl mb-2 text-blue-600`} /> <h2 className="text-lg font-semibold text-gray-700"> Total Users </h2> </div>
+                          <div> {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>} {(errorCounts || errorGenderCounts) && !isLoadingCounts && !isLoadingGenderCounts && ( <p className="text-red-500 text-sm">{errorCounts || errorGenderCounts}</p> )} {!isLoadingCounts && !errorCounts && totalUserCount !== null && ( <p className={`text-5xl font-bold text-blue-600`}>{totalUserCount}</p> )} {!isLoadingCounts && !errorCounts && totalUserCount === null && ( <p className="text-5xl font-bold text-gray-400">-</p> )} </div>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap justify-around items-center text-sm text-gray-600 gap-y-2">
+                          <div className="text-center px-1 min-w-[60px]"> <FaMale className="mx-auto text-xl text-blue-500 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Male')}</span> <span className="block text-xs">Male</span> </div>
+                          <div className="text-center px-1 min-w-[60px]"> <FaFemale className="mx-auto text-xl text-pink-500 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Female')}</span> <span className="block text-xs">Female</span> </div>
+                          { !isLoadingGenderCounts && !errorGenderCounts && typeof getGenderCount('Other') === 'number' && Number(getGenderCount('Other')) > 0 && (
+                              <div className="text-center px-1 min-w-[60px]"> <FaGenderless className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('Other')}</span> <span className="block text-xs">Other</span> </div>
+                          )}
+                          { !isLoadingGenderCounts && !errorGenderCounts && typeof getGenderCount('') === 'number' && Number(getGenderCount('')) > 0 && (
+                              <div className="text-center px-1 min-w-[60px]"> <FaQuestionCircle className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getGenderCount('')}</span> <span className="block text-xs">Unknown</span> </div>
+                          )}
+                      </div>
+                  </div>
+
+                  {/* Total Reports Card */}
+                  <div className="bg-white p-6 md:p-8 lg:p-12 rounded-lg shadow border border-gray-200 text-center h-full flex flex-col justify-between">
+                      <div>
+                          <div className="mb-3"> <FaFileAlt className={`mx-auto text-4xl mb-2 text-orange-600`} /> <h2 className="text-lg font-semibold text-gray-700"> Total Reports </h2> </div>
+                          <div> {isLoadingCounts && <div className="h-12 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>} {(errorCounts || errorStatusCounts) && !isLoadingCounts && !isLoadingStatusCounts && ( <p className="text-red-500 text-sm">{errorCounts || errorStatusCounts}</p> )} {!isLoadingCounts && !errorCounts && reportCount !== null && ( <p className={`text-5xl font-bold text-orange-600`}>{reportCount}</p> )} {!isLoadingCounts && !errorCounts && reportCount === null && ( <p className="text-5xl font-bold text-gray-400">-</p> )} </div>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-200 flex flex-wrap justify-around items-center text-sm text-gray-600 gap-y-2">
+                          <div className="text-center px-1 min-w-[60px]"> <FaSpinner className="mx-auto text-xl text-blue-500 mb-1 animate-spin" /> <span className="font-medium block text-lg">{getStatusCount('Ongoing')}</span> <span className="block text-xs">Ongoing</span> </div>
+                          <div className="text-center px-1 min-w-[60px]"> <FaHourglassHalf className="mx-auto text-xl text-yellow-500 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Pending')}</span> <span className="block text-xs">Pending</span> </div>
+                          <div className="text-center px-1 min-w-[60px]"> <FaCheckCircle className="mx-auto text-xl text-green-500 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Resolved')}</span> <span className="block text-xs">Resolved</span> </div>
+                          { !isLoadingStatusCounts && !errorStatusCounts && typeof getStatusCount('Unknown') === 'number' && Number(getStatusCount('Unknown')) > 0 && (
+                              <div className="text-center px-1 min-w-[60px]"> <FaQuestionCircle className="mx-auto text-xl text-gray-400 mb-1" /> <span className="font-medium block text-lg">{getStatusCount('Unknown')}</span> <span className="block text-xs">Unknown</span> </div>
+                          )}
+                      </div>
+                  </div>
+
+                  {/* Pie Chart */}
+                  <div className="md:col-span-2 lg:col-span-1">
+                      <PieChart approvedCount={approvedUserCount} pendingCount={pendingUserCount} rejectedCount={rejectedUserCount} isLoading={isLoadingCounts} error={errorCounts ? 'Error loading chart data' : null} />
+                  </div>
+              </div>
+
+              {/* Section: User Lists & Quick Links */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <UserList title="Recent Pending Users"  users={pendingUsers} isLoading={isLoadingPending} error={errorPending} emptyMessage="No pending users found." link="/ui/admin/user-management?status=pending" icon={FaUserClock} iconColor="text-yellow-600" />
+                <UserList title="Recent Rejected Users" users={rejectedUsers} isLoading={isLoadingRejected} error={errorRejected} emptyMessage="No rejected users found." link="/ui/admin/user-management?status=rejected" icon={FaUserTimes} iconColor="text-red-600" />
+                <div className="bg-white p-4 rounded-lg shadow border border-gray-200 h-full">
+                    <h2 className="text-lg font-semibold text-gray-700 mb-3">Quick Links</h2>
+                    <div className="space-y-3">
+                        <Link href="/ui/admin/user-management" className="flex items-center p-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm"><FaUsers className="mr-3 text-blue-500" /><span>Manage Users</span></Link>
+                        <Link href="/ui/admin/view-crime" className="flex items-center p-3 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors text-sm"><FaFileAlt className="mr-3 text-orange-500" /><span>View Crime Reports</span></Link>
+                        <Link href="/ui/admin/user-management/add-user" className="flex items-center p-3 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm"><FaUserPlus className="mr-3 text-green-500" /><span>Add New User</span></Link>
+                        <Link href="/ui/admin/add-crime" className="flex items-center p-3 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm"><FaPlusSquare className="mr-3 text-purple-500" /><span>Add New Crime Report</span></Link>
+                    </div>
+                </div>
+              </div>
+
+              {/* Section: Line Chart & Bar Chart Side-by-Side */}
+              <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Report Charts</h1>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Line Chart Container */}
+                <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0">
+                        <h2 className="text-lg font-semibold text-gray-700 mb-2 sm:mb-0 flex items-center"> <FaChartLine className="mr-2 text-indigo-600" /> {lineChartTitle} </h2>
+                        <div className="flex justify-center space-x-1 sm:space-x-2">
+                            {(['yearly', 'monthly', 'weekly'] as TrendType[]).map((type) => (
+                                <button key={type} onClick={() => handleTrendTypeChange(type)} disabled={isLoadingTrend} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ selectedTrendType === type ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} > {type.charAt(0).toUpperCase() + type.slice(1)} </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="relative h-96 flex-grow">
+                        <LineChartReports data={reportTrendData} isLoading={isLoadingTrend} error={errorTrend} dataType={selectedTrendType} />
+                    </div>
+                </div>
+
+                {/* Bar Chart Container */}
+                <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0 gap-2">
+                        <h2 className="text-lg font-semibold text-gray-700 flex items-center mr-2">
+                            <FaChartBar className="mr-2 text-teal-600" />
+                            {barChartTitle}
+                        </h2>
+                        <div className="flex flex-wrap justify-end items-center gap-2">
+                            <div className="flex justify-center space-x-1 sm:space-x-2">
+                                {(['province','municipality_city', 'barangay'] as LocationGroupByType[]).map((type) => (
+                                    <button key={type} onClick={() => handleLocationGroupByChange(type)} disabled={isLoadingTopLocation} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ locationGroupBy === type ? 'bg-teal-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} >
+                                        {type === 'municipality_city' ? 'City/Mun' : type === 'province' ? 'Province' : 'Brgy'}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex-shrink-0 text-black">
+                                <label htmlFor="locationYearSelect" className="sr-only">Select Year</label>
+                                <select
+                                    id="locationYearSelect"
+                                    value={selectedLocationYear}
+                                    onChange={handleLocationYearChange}
+                                    disabled={isLoadingTopLocation || isLoadingLocationYears || availableLocationYears.length === 0}
+                                    className="block w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-xs sm:text-sm disabled:opacity-50"
+                                >
+                                    <option value="all">All Time</option>
+                                    {availableLocationYears.map(year => (
+                                        <option key={year} value={year.toString()}>
+                                            {year}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="relative h-96 flex-grow">
+                        {isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading Chart...</div>}
+                        {errorTopLocation && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-red-500 p-4 text-center">Error: {errorTopLocation}</div>}
+                        {!isLoadingTopLocation && !errorTopLocation && (
+                            <BarChart
+                                data={topLocationChartData}
+                                yAxisLabel="Number of Reports"
+                                xAxisLabel={ locationGroupBy === 'barangay' ? 'Barangay' : locationGroupBy === 'province' ? 'Province' : 'Municipality/City' }
+                                datasetLabel={`Reports (${selectedLocationYear === 'all' ? 'All Time' : selectedLocationYear})`}
+                            />
+                        )}
+                        {isLoadingLocationYears && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">Loading available years...</div>}
+                    </div>
+                </div>
+              </div>
+
+              {/* Section: Predictions */}
+              <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Crime Predictions</h1>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                  <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+                    <FaBrain className="mr-2 text-purple-600" />
+                    Crime Trend Forecast
+                  </h2>
+                  <div className="relative h-[550px] flex-grow">
+                    <PredictionCharts
+                      endpointPath="/api/forecast/crime-trend"
+                      title="Crime Trend Forecast Chart"
+                      className="w-full h-full"
+                    />
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                  <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+                    <FaBrain className="mr-2 text-purple-600" />
+                    Top Predicted Locations
+                  </h2>
+                  <div className="relative h-[500px] flex-grow">
+                    <PredictionCharts
+                      endpointPath="/api/forecast/top-locations"
+                      title="Top Predicted Locations Chart"
+                      className="w-full h-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+          {/* --- END 'All' Mode Layout --- */}
+
+
+          {/* --- 'Charts' Mode Layout --- */}
+          {dashboardViewMode === 'charts' && (
+            <>
+              {/* Row 1: Pie Chart & Bar Chart */}
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">User & Location Charts</h1>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Pie Chart Container */}
+                  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                      {/* You might want a title here too */}
+                      <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+                          <FaChartPie className="mr-2 text-blue-600" />Status 
+                      </h2>
+                      <div className="relative h-96 flex-grow"> {/* Ensure height */}
+                          <PieChart approvedCount={approvedUserCount} pendingCount={pendingUserCount} rejectedCount={rejectedUserCount} isLoading={isLoadingCounts} error={errorCounts ? 'Error loading chart data' : null} />
+                      </div>
+                  </div>
+
+                  {/* Bar Chart Container */}
+                  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0 gap-2">
+                          <h2 className="text-lg font-semibold text-gray-700 flex items-center mr-2">
+                              <FaChartBar className="mr-2 text-teal-600" />
+                              {barChartTitle}
+                          </h2>
+                          <div className="flex flex-wrap justify-end items-center gap-2">
+                              <div className="flex justify-center space-x-1 sm:space-x-2">
+                                  {(['province','municipality_city', 'barangay'] as LocationGroupByType[]).map((type) => (
+                                      <button key={type} onClick={() => handleLocationGroupByChange(type)} disabled={isLoadingTopLocation} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ locationGroupBy === type ? 'bg-teal-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} >
+                                          {type === 'municipality_city' ? 'City/Mun' : type === 'province' ? 'Province' : 'Brgy'}
+                                      </button>
+                                  ))}
+                              </div>
+                              <div className="flex-shrink-0 text-black">
+                                  <label htmlFor="locationYearSelectCharts" className="sr-only">Select Year</label>
+                                  <select
+                                      id="locationYearSelectCharts" // Use different ID if needed
+                                      value={selectedLocationYear}
+                                      onChange={handleLocationYearChange}
+                                      disabled={isLoadingTopLocation || isLoadingLocationYears || availableLocationYears.length === 0}
+                                      className="block w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-xs sm:text-sm disabled:opacity-50"
+                                  >
+                                      <option value="all">All Time</option>
+                                      {availableLocationYears.map(year => (
+                                          <option key={year} value={year.toString()}>
+                                              {year}
+                                          </option>
+                                      ))}
+                                  </select>
+                              </div>
+                          </div>
+                      </div>
+                      <div className="relative h-96 flex-grow">
+                          {isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-500">Loading Chart...</div>}
+                          {errorTopLocation && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-red-500 p-4 text-center">Error: {errorTopLocation}</div>}
+                          {!isLoadingTopLocation && !errorTopLocation && (
+                              <BarChart
+                                  data={topLocationChartData}
+                                  yAxisLabel="Number of Reports"
+                                  xAxisLabel={ locationGroupBy === 'barangay' ? 'Barangay' : locationGroupBy === 'province' ? 'Province' : 'Municipality/City' }
+                                  datasetLabel={`Reports (${selectedLocationYear === 'all' ? 'All Time' : selectedLocationYear})`}
+                              />
+                          )}
+                          {isLoadingLocationYears && !isLoadingTopLocation && <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">Loading available years...</div>}
+                      </div>
+                  </div>
+              </div>
+
+              {/* Row 2: Line Chart & Prediction 1 */}
+              <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Report Trends & Predictions</h1>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Line Chart Container */}
+                  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                      <div className="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-200 pb-3 flex-shrink-0">
+                          <h2 className="text-lg font-semibold text-gray-700 mb-2 sm:mb-0 flex items-center"> <FaChartLine className="mr-2 text-indigo-600" /> {lineChartTitle} </h2>
+                          <div className="flex justify-center space-x-1 sm:space-x-2">
+                              {(['yearly', 'monthly', 'weekly'] as TrendType[]).map((type) => (
+                                  <button key={type} onClick={() => handleTrendTypeChange(type)} disabled={isLoadingTrend} className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 ${ selectedTrendType === type ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }`} > {type.charAt(0).toUpperCase() + type.slice(1)} </button>
+                              ))}
+                          </div>
+                      </div>
+                      <div className="relative h-96 flex-grow">
+                          <LineChartReports data={reportTrendData} isLoading={isLoadingTrend} error={errorTrend} dataType={selectedTrendType} />
+                      </div>
+                  </div>
+
+                  {/* Prediction 1 Container (Trend Forecast) */}
+                  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                    <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+                      <FaBrain className="mr-2 text-purple-600" />
+                      Crime Trend Forecast
+                    </h2>
+                    {/* Adjusted height to match Line Chart */}
+                    <div className="relative h-96 flex-grow">
+                      <PredictionCharts
+                        endpointPath="/api/forecast/crime-trend"
+                        title="Crime Trend Forecast Chart"
+                        className="w-full h-full"
+                      />
+                    </div>
+                  </div>
+              </div>
+
+              {/* Row 3: Prediction 2 (Full Width) */}
+              <div className="grid grid-cols-1 gap-6 mt-6"> {/* Added mt-6 for spacing */}
+                  {/* Prediction 2 Container (Top Locations) */}
+                  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
+                    <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+                      <FaBrain className="mr-2 text-purple-600" />
+                      Top Predicted Locations
+                    </h2>
+                    {/* Height can be adjusted as needed */}
+                    <div className="relative h-[500px] flex-grow">
+                      <PredictionCharts
+                        endpointPath="/api/forecast/top-locations"
+                        title="Top Predicted Locations Chart"
+                        className="w-full h-full"
+                      />
+                    </div>
+                  </div>
+              </div>
+            </>
+          )}
+          {/* --- END 'Charts' Mode Layout --- */}
+        </>
+      )}
+      {/* --- END Conditional Rendering for Charts Sections --- */}
+
+
+      {/* --- Conditional Rendering for Visualizations Section --- */}
+      {(dashboardViewMode === 'all' || dashboardViewMode === 'visualizations') && (
+        <>
+          {/* Section: Crime Map Visualizations */}
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Geospatial Analysis / Weather Forecast</h1>
+          <div className="bg-white p-4 rounded-lg shadow border border-gray-200 ">
+            {/* --- Controls Row --- */}
+            <div className="mb-4 flex flex-wrap items-center justify-end gap-4">
+              {/* Crime Map Filter (Conditional) - Moved to the start */}
+              {activeGeospatialView === 'crime' && (
+                <div className="relative mr-auto" ref={mapFilterDropdownRef}>
+                  <button onClick={() => setIsMapFilterOpen(!isMapFilterOpen)} className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${ isMapFilterOpen ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-800 hover:bg-indigo-500 hover:text-white" }`}>
+                    <FaFilter className="mr-2" />{formatMapName(activeMap)}<FaChevronDown className={`ml-2 transition-transform duration-200 ${isMapFilterOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isMapFilterOpen && ( <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20"><ul className="py-1">{(['heat', 'hotspot', 'status'] as MapType[]).map((mapType) => ( <li key={mapType}><button onClick={() => handleMapSelect(mapType)} className={`w-full text-left px-4 py-2 text-sm transition-colors ${ activeMap === mapType ? "bg-gray-100 text-orange-500 font-medium" : "text-gray-700 hover:bg-gray-100 hover:text-orange-500" }`}>{formatMapName(mapType)}</button></li> ))}&</ul></div> )}
+                </div>
+              )}
+
+              {/* View Switch Buttons - Kept at the end (justify-end will place them correctly) */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleGeospatialViewChange('crime')}
+                  className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
+                    activeGeospatialView === 'crime'
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
+                  }`}
+                >
+                  <FaMap className="mr-2" /> Crime Map
+                </button>
+                <button
+                  onClick={() => handleGeospatialViewChange('weather')}
+                  className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
+                    activeGeospatialView === 'weather'
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
+                  }`}
+                >
+                  <FaCloudSun className="mr-2" /> Weather
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg">
+                {/* --- Dynamic Title --- */}
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  {activeGeospatialView === 'crime' ? `Crime Map: ${formatMapName(activeMap)}` : 'Weather Forecast'}
+                </h2>
+                {/* Adjusted height: base height increased, md height set to 780px */}
+                <div className="w-full h-[600px] md:h-[780px] bg-white rounded-lg overflow-hidden shadow-inner">
+                  {/* --- Conditional Rendering of Map/Weather --- */}
+                  {activeGeospatialView === 'crime' && (
+                    <CrimeMap
+                      key={activeMap} // Keep key for re-rendering CrimeMap on type change
+                      endpointPath={mapEndpoints[activeMap]}
+                      className="w-full h-full"
+                      legendTitle={currentLegend.title}
+                      legendItems={currentLegend.items}
+                    />
+                  )}
+                  {activeGeospatialView === 'weather' && (
+                    <WeatherMap
+                      key="weather-map" // Add a key for consistency
+                      endpointPath="/api/generate-weather"
+                      title="Weather Forecast" // Consistent title
+                      className="relative w-full h-full flex-grow" // Ensure it fills the container
+                    />
+                  )}
+                </div>
+            </div>
           </div>
-      </div>
-    </div>
+        </>
+      )}
+      {/* --- END Conditional Rendering for Visualizations Section --- */}
 
     </div>
   );
