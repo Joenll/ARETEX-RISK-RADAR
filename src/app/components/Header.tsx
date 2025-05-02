@@ -82,7 +82,7 @@ const DashboardHeader = () => {
             {userDisplayName}
           </p>
         </div>
-        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-orange-500 overflow-hidden flex items-center justify-center bg-orange-500 text-white font-bold text-lg">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-orange-500 overflow-hidden flex items-center justify-center bg-blue-500 text-white font-bold text-lg">
           <span>{userInitial}</span>
         </div>
         <div className="relative" ref={dropdownRef}>

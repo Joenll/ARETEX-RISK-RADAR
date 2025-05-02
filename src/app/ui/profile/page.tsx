@@ -472,7 +472,7 @@ export default function ProfilePage() {
       {/* Profile Card */}
       <div className={`bg-white rounded-lg shadow-md p-8 max-w-4xl mx-auto ${isChangingPassword ? 'hidden' : 'block'}`}>
         <div className="flex flex-col items-center mb-8 relative">
-          <div className="relative h-24 w-24 mb-4 flex items-center justify-center bg-orange-500 rounded-full border-2 border-orange-500 text-white text-3xl font-semibold">
+          <div className="relative h-24 w-24 mb-4 flex items-center justify-center bg-blue-500 rounded-full border-2 border-orange-500 text-white text-3xl font-semibold">
             {initials}
           </div>
           <h2 className="text-xl font-bold text-gray-800">
