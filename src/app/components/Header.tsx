@@ -57,6 +57,7 @@ const DashboardHeader = () => {
   const userDisplayName = session?.user?.name || session?.user?.email || "User";
   const userRole = session?.user?.role || "User";
   const userInitial = userDisplayName.charAt(0).toUpperCase();
+  const profilePictureUrl = session?.user?.profilePictureUrl; // Get profile picture URL
   const displayRole = userRole.charAt(0).toUpperCase() + userRole.slice(1);
 
   return (
@@ -82,8 +83,17 @@ const DashboardHeader = () => {
             {userDisplayName}
           </p>
         </div>
+        {/* --- Updated Profile Picture/Initial Display --- */}
         <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-orange-500 overflow-hidden flex items-center justify-center bg-blue-500 text-white font-bold text-lg">
-          <span>{userInitial}</span>
+          {profilePictureUrl ? (
+            <img
+              src={profilePictureUrl}
+              alt="Profile"
+              className="w-full h-full object-cover" // Ensure image covers the circle
+            />
+          ) : (
+            <span>{userInitial}</span> // Fallback to initial
+          )}
         </div>
         <div className="relative" ref={dropdownRef}>
           <button

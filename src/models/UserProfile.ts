@@ -13,6 +13,7 @@ export interface IUserProfile extends Document {
   birthdate: Date;
   sex: UserSex;
   team: string; // Team or department (e.g., "Development Team")
+  profilePictureUrl?: string; // Field to store the image URL
   createdAt: Date; // Timestamps added by schema option
   updatedAt: Date; // Timestamps added by schema option
 }
@@ -60,6 +61,10 @@ const UserProfileSchema = new Schema<IUserProfile>(
       type: String,
       required: true,
       trim: true,
+    },
+    profilePictureUrl: { // Schema definition for the image URL
+      type: String,
+      trim: true, // Remove leading/trailing whitespace from the URL
     },
   },
   {

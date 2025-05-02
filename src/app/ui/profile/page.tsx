@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { IUser } from '@/models/User';
+import { FaCamera } from 'react-icons/fa'; // Import camera icon
 import { IUserProfile, UserSex } from '@/models/UserProfile';
 import Button from '@/app/components/Button'; // Assuming Button component exists
 import Swal from 'sweetalert2'; // Import SweetAlert2
@@ -14,7 +15,10 @@ const sexOptions: UserSex[] = ['Male', 'Female'];
 // Define a type for the fetched data structure
 interface UserWithProfile extends Omit<IUser, 'profile' | 'password'> {
   _id: string;
-  profile: IUserProfile & { _id?: string };
+  profile: IUserProfile & {
+      _id?: string;
+      profilePictureUrl?: string; // Add profilePictureUrl here
+  };
 }
 
 // Define a type for the editable fields in the form
@@ -55,7 +59,7 @@ const errorBorderClass = "border-red-500"; // Class for error border
 const inputFieldStyles = "w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 bg-white"; // Base input style
 
 export default function ProfilePage() {
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus, update } = useSession(); // <-- Added update here
   const [userData, setUserData] = useState<UserWithProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true); // For initial load and saving profile
   const [initialLoadError, setInitialLoadError] = useState<string | null>(null); // Keep for initial load error
@@ -72,6 +76,14 @@ export default function ProfilePage() {
   });
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [passwordValidationErrors, setPasswordValidationErrors] = useState<{ [key: string]: string }>({}); // Separate state for password validation
+
+  // --- State for Profile Picture ---
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false); // Loading state for image upload
+  // --- NEW: State for Image Modal ---
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [modalImageUrl, setModalImageUrl] = useState<string | null>(null);
 
   // --- Fetch User Profile ---
   useEffect(() => {
@@ -98,6 +110,7 @@ export default function ProfilePage() {
               birthdate: fetchedUser.profile.birthdate ? new Date(fetchedUser.profile.birthdate).toISOString().split('T')[0] : '',
               team: fetchedUser.profile.team || '',
               sex: fetchedUser.profile.sex || '',
+              // profilePictureUrl is handled separately, not in formData
             });
           } else {
             throw new Error("Fetched data is missing user or profile information.");
@@ -113,6 +126,8 @@ export default function ProfilePage() {
     } else if (sessionStatus === 'unauthenticated') {
       setIsLoading(false);
       setInitialLoadError("You must be logged in to view this page.");
+    } else {
+        setIsLoading(false); // Ensure loading is false if not authenticated or loading
     }
   }, [sessionStatus]);
 
@@ -134,6 +149,24 @@ export default function ProfilePage() {
     }
   };
 
+  // --- Profile Picture Handlers ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      // Basic validation (optional: add more checks like file size, type)
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit example
+          Swal.fire('File Too Large', 'Please select an image smaller than 5MB.', 'warning');
+          return;
+      }
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file)); // Create preview URL
+    } else {
+      setSelectedFile(null);
+      setPreviewUrl(null);
+    }
+    // Note: No validation error state needed here unless you add specific image validation rules
+  };
+
   const handleEditToggle = () => {
     if (!isEditing && userData?.profile) {
       // Reset form data to current user data when entering edit mode
@@ -146,6 +179,8 @@ export default function ProfilePage() {
         team: userData.profile.team || '',
         sex: userData.profile.sex || '',
       });
+      setSelectedFile(null); // Clear selected file on entering edit mode
+      setPreviewUrl(null); // Clear preview
       setIsChangingPassword(false); // Ensure password change is off
       setValidationErrors({}); // Clear any previous validation errors
     } else {
@@ -160,6 +195,8 @@ export default function ProfilePage() {
                 team: userData.profile.team || '',
                 sex: userData.profile.sex || '',
             });
+            setSelectedFile(null); // Clear selected file on cancel
+            setPreviewUrl(null); // Clear preview
         }
         setValidationErrors({}); // Clear errors on cancel
     }
@@ -245,11 +282,43 @@ export default function ProfilePage() {
     return isValid;
   };
 
+  // --- Function to Upload Profile Picture ---
+  const uploadProfilePicture = async (file: File): Promise<string | null> => {
+      setIsUploading(true);
+      const uploadFormData = new FormData();
+      uploadFormData.append('profilePicture', file);
+
+      try {
+          // Calls the endpoint we created earlier
+          const response = await fetch('/api/profile/upload-picture', {
+              method: 'POST',
+              body: uploadFormData,
+              // No 'Content-Type' header needed, browser sets it for FormData
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+              throw new Error(result.error || 'Failed to upload image.');
+          }
+
+          return result.imageUrl; // Assuming the API returns { imageUrl: '...' }
+      } catch (err: any) {
+          console.error("Image upload failed:", err);
+          Swal.fire('Upload Failed', err.message || 'Could not upload profile picture.', 'error');
+          return null;
+      } finally {
+          setIsUploading(false);
+      }
+  };
+
   // --- handleSave with Validation ---
   const handleSave = async () => {
     setValidationErrors({}); // Clear previous errors
+    // Combine profile and image loading states
+    const combinedLoading = isLoading || isUploading;
     if (!validateProfileForm()) { // Run validation
-        setIsLoading(false); // Ensure loading is off
+        // Don't set loading state here, just return
         return; // Stop if validation fails
     }
 
@@ -258,7 +327,18 @@ export default function ProfilePage() {
         return;
     }
 
-    setIsLoading(true);
+    setIsLoading(true); // Set loading for profile data save
+
+    let uploadedImageUrl: string | null = null;
+
+    // --- Upload image if selected ---
+    if (selectedFile) {
+        uploadedImageUrl = await uploadProfilePicture(selectedFile);
+        if (!uploadedImageUrl) { // If upload failed, stop the save process
+            setIsLoading(false); // Reset profile save loading state
+            return;
+        }
+    }
 
     // Prepare data, trimming string values
     const updateData: Partial<EditableProfileFields> = {};
@@ -268,6 +348,10 @@ export default function ProfilePage() {
         updateData[key] = typeof value === 'string' ? value.trim() : value;
     });
 
+    // --- Add uploaded image URL to the update data ---
+    if (uploadedImageUrl) {
+        (updateData as any).profilePictureUrl = uploadedImageUrl; // Add the URL
+    }
 
     try {
         const response = await fetch(`/api/users/${userData._id}`, {
@@ -282,7 +366,7 @@ export default function ProfilePage() {
         const result = await response.json();
 
         // Update local state with confirmed data from backend
-        if (result.data && userData) {
+        if (result.data && userData?.profile) { // Check if userData.profile exists
              // Ensure birthdate is formatted correctly if returned
              const profileUpdate = {
                 ...result.data,
@@ -290,16 +374,26 @@ export default function ProfilePage() {
              };
              setUserData(prevUserData => prevUserData ? {
                 ...prevUserData,
-                profile: { ...prevUserData.profile, ...profileUpdate }
+                // Merge existing profile with updates, including the new picture URL if saved
+                profile: {
+                    ...prevUserData.profile,
+                    ...profileUpdate,
+                    profilePictureUrl: uploadedImageUrl ?? prevUserData.profile.profilePictureUrl // Use new or existing URL
+                }
              } : null);
              setFormData(prev => ({ ...prev, ...profileUpdate })); // Update form state as well
         }
 
+        // --- Trigger session update ---
+        await update(); // Add this line to refresh the session data
+
         setIsEditing(false); // Exit edit mode
-        Swal.fire({
-            icon: 'success', title: 'Profile Updated!', text: 'Your profile details have been saved (logout then signin again to apply changes in the header).',
-            timer: 4000, showConfirmButton: false,
+        Swal.fire({ // Adjusted message
+            icon: 'success', title: 'Profile Updated!', text: 'Your profile details have been saved.',
+            timer: 2000, showConfirmButton: false,
         });
+        setSelectedFile(null); // Clear selected file after successful save
+        setPreviewUrl(null); // Clear preview
     } catch (err: any) {
         console.error("Failed to save profile:", err);
         Swal.fire({ icon: 'error', title: 'Save Failed', text: err.message || "Failed to save profile." });
@@ -354,11 +448,6 @@ export default function ProfilePage() {
 
       if (!isValid) {
           // No need for Swal here, errors are shown inline
-          // Swal.fire({
-          //     icon: 'error',
-          //     title: 'Password Validation Errors',
-          //     text: 'Please correct the errors in the password form.',
-          // });
       }
       return isValid;
   };
@@ -408,6 +497,17 @@ export default function ProfilePage() {
     }
   };
 
+  // --- NEW: Handler to open the image modal ---
+  const handleImageClick = () => {
+    const imageUrlToShow = previewUrl || currentProfilePictureUrl;
+    if (imageUrlToShow) {
+      setModalImageUrl(imageUrlToShow);
+      setIsImageModalOpen(true);
+    }
+  };
+  // --- END NEW Handler ---
+
+
   // --- Logout Handler ---
   const handleLogout = () => {
     Swal.fire({
@@ -456,6 +556,7 @@ export default function ProfilePage() {
   const displayBirthdate = isEditing ? formData.birthdate : (userData.profile.birthdate ? new Date(userData.profile.birthdate).toLocaleDateString() : 'N/A');
   const displaySex = isEditing ? formData.sex : userData.profile.sex;
   const displayEmployeeNumber = isEditing ? formData.employeeNumber : userData.profile.employeeNumber;
+  const currentProfilePictureUrl = userData.profile.profilePictureUrl; // Get current URL
 
   const initials = getInitials(displayFirstName, displayLastName);
 
@@ -471,10 +572,44 @@ export default function ProfilePage() {
 
       {/* Profile Card */}
       <div className={`bg-white rounded-lg shadow-md p-8 max-w-4xl mx-auto ${isChangingPassword ? 'hidden' : 'block'}`}>
-        <div className="flex flex-col items-center mb-8 relative">
-          <div className="relative h-24 w-24 mb-4 flex items-center justify-center bg-blue-500 rounded-full border-2 border-orange-500 text-white text-3xl font-semibold">
-            {initials}
+        <div className="flex flex-col items-center mb-8 relative"> {/* Added relative here */}
+          {/* Profile Picture Display & Upload - Added onClick */}
+          <div className="relative h-24 w-24 mb-4 rounded-full border-2 border-orange-500 overflow-hidden group cursor-pointer" onClick={handleImageClick}> {/* Added cursor-pointer and onClick */}
+            <img
+              src={previewUrl || currentProfilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3b82f6&color=fff&size=96`} // Use preview, then current, then placeholder/initials
+              alt="Profile Picture"
+              className="w-full h-full object-cover"
+              title="Click to enlarge" // Add title attribute
+            />
+            {/* Upload Overlay - Show only in edit mode */}
+            {isEditing && (
+              <label htmlFor="profilePictureInput" className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity duration-200 cursor-pointer">
+                <FaCamera className="text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                <input
+                  id="profilePictureInput"
+                  type="file"
+                  accept="image/jpeg, image/png, image/gif, image/webp" // Specify acceptable image types
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" // Hide the default input
+                  disabled={isLoading || isUploading} // Disable during uploads
+                />
+              </label>
+            )}
           </div>
+          {/* Loading indicator for image upload */}
+          {/* --- NEW: "See Photo" Button --- */}
+          {isEditing && previewUrl && (
+            <button
+              type="button"
+              onClick={() => window.open(previewUrl, '_blank')} // Opens the preview URL in a new tab
+              className="mt-2 px-2 py-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-colors"
+            >
+              See selected photo
+            </button>
+          )}
+          {isUploading && <p className="text-xs text-blue-600 mt-1">Uploading image...</p>}
+
+          {/* User Name and Position */}
           <h2 className="text-xl font-bold text-gray-800">
             {displayFirstName || ''} {displayLastName || ''}
           </h2>
@@ -484,7 +619,7 @@ export default function ProfilePage() {
           {!isEditing && (
             <button
               onClick={handleEditToggle}
-              disabled={isLoading}
+              disabled={isLoading || isUploading} // Disable if profile or image is loading
               className="absolute top-0 right-0 flex items-center gap-1 px-3 py-1 text-xs border border-gray-300 bg-white text-gray-700 rounded-md hover:bg-blue-500 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -508,7 +643,7 @@ export default function ProfilePage() {
             <div className="text-gray-700">
               {isEditing ? (
                 <>
-                  <input id="firstName" type="text" name="firstName" value={formData.firstName || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.firstName ? errorBorderClass : ''}`} disabled={isLoading}/>
+                  <input id="firstName" type="text" name="firstName" value={formData.firstName || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.firstName ? errorBorderClass : ''}`} disabled={isLoading || isUploading}/>
                   {validationErrors.firstName && <p className={errorTextStyles}>{validationErrors.firstName}</p>}
                 </>
                ) : ( displayFirstName || 'N/A' )}
@@ -520,7 +655,7 @@ export default function ProfilePage() {
             <div className="text-gray-700">
               {isEditing ? (
                 <>
-                  <input id="lastName" type="text" name="lastName" value={formData.lastName || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.lastName ? errorBorderClass : ''}`} disabled={isLoading}/>
+                  <input id="lastName" type="text" name="lastName" value={formData.lastName || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.lastName ? errorBorderClass : ''}`} disabled={isLoading || isUploading}/>
                   {validationErrors.lastName && <p className={errorTextStyles}>{validationErrors.lastName}</p>}
                 </>
               ) : ( displayLastName || 'N/A' )}
@@ -532,7 +667,7 @@ export default function ProfilePage() {
             <div className="text-gray-700">
               {isEditing ? (
                 <>
-                  <input id="birthdate" type="date" name="birthdate" value={formData.birthdate || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.birthdate ? errorBorderClass : ''}`} disabled={isLoading}/>
+                  <input id="birthdate" type="date" name="birthdate" value={formData.birthdate || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.birthdate ? errorBorderClass : ''}`} disabled={isLoading || isUploading}/>
                   {validationErrors.birthdate && <p className={errorTextStyles}>{validationErrors.birthdate}</p>}
                 </>
               ) : ( displayBirthdate )}
@@ -544,7 +679,7 @@ export default function ProfilePage() {
             <div className="text-gray-700">
               {isEditing ? (
                 <>
-                  <select id="sex" name="sex" value={formData.sex || ''} onChange={handleInputChange} required className={`${inputFieldStyles} ${validationErrors.sex ? errorBorderClass : ''}`} disabled={isLoading}>
+                  <select id="sex" name="sex" value={formData.sex || ''} onChange={handleInputChange} required className={`${inputFieldStyles} ${validationErrors.sex ? errorBorderClass : ''}`} disabled={isLoading || isUploading}>
                     <option value="" disabled>Select Sex</option>
                     {sexOptions.map(option => ( <option key={option} value={option}>{option}</option> ))}
                   </select>
@@ -559,7 +694,7 @@ export default function ProfilePage() {
             <div className="text-gray-700">
               {isEditing ? (
                 <>
-                  <input id="team" type="text" name="team" value={formData.team || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.team ? errorBorderClass : ''}`} disabled={isLoading}/>
+                  <input id="team" type="text" name="team" value={formData.team || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.team ? errorBorderClass : ''}`} disabled={isLoading || isUploading}/>
                   {validationErrors.team && <p className={errorTextStyles}>{validationErrors.team}</p>}
                 </>
               ) : ( displayTeam || 'N/A' )}
@@ -571,7 +706,7 @@ export default function ProfilePage() {
             <div className="text-gray-700">
               {isEditing ? (
                 <>
-                  <input id="workPosition" type="text" name="workPosition" value={formData.workPosition || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.workPosition ? errorBorderClass : ''}`} disabled={isLoading}/>
+                  <input id="workPosition" type="text" name="workPosition" value={formData.workPosition || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.workPosition ? errorBorderClass : ''}`} disabled={isLoading || isUploading}/>
                   {validationErrors.workPosition && <p className={errorTextStyles}>{validationErrors.workPosition}</p>}
                 </>
               ) : ( displayWorkPosition || 'N/A' )}
@@ -583,7 +718,7 @@ export default function ProfilePage() {
             <div className="text-gray-700">
               {isEditing ? (
                 <>
-                  <input id="employeeNumber" type="text" name="employeeNumber" value={formData.employeeNumber || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.employeeNumber ? errorBorderClass : ''}`} disabled={isLoading}/>
+                  <input id="employeeNumber" type="text" name="employeeNumber" value={formData.employeeNumber || ''} onChange={handleInputChange} className={`${inputFieldStyles} ${validationErrors.employeeNumber ? errorBorderClass : ''}`} disabled={isLoading || isUploading}/>
                   {validationErrors.employeeNumber && <p className={errorTextStyles}>{validationErrors.employeeNumber}</p>}
                 </>
               ) : ( displayEmployeeNumber || 'N/A' )}
@@ -613,7 +748,7 @@ export default function ProfilePage() {
         <div className="mb-8">
           <p className="text-sm font-medium text-gray-700 mb-1">Password Setting</p>
           <button
-            onClick={handleTogglePasswordChange}
+            onClick={handleTogglePasswordChange} // Disable if profile or image is loading/saving
             disabled={isLoading || isEditing}
             className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:opacity-50"
           >
@@ -625,8 +760,8 @@ export default function ProfilePage() {
         <div className="flex justify-end gap-4 border-t pt-6 mt-6">
           {isEditing ? (
             <>
-              <Button variant="back" onClick={handleEditToggle} disabled={isLoading}> Cancel </Button>
-              <Button variant="submit" onClick={handleSave} isLoading={isLoading} disabled={isLoading}> Save Changes </Button>
+              <Button variant="back" onClick={handleEditToggle} disabled={isLoading || isUploading}> Cancel </Button>
+              <Button variant="submit" onClick={handleSave} isLoading={isLoading || isUploading} disabled={isLoading || isUploading}> Save Changes </Button>
             </>
           ) : (
              <Button
@@ -675,6 +810,23 @@ export default function ProfilePage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- NEW: Image Modal --- */}
+      {isImageModalOpen && modalImageUrl && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+          onClick={() => setIsImageModalOpen(false)} // Close on background click
+        >
+          <div className="relative max-w-3xl max-h-[80vh]" onClick={(e) => e.stopPropagation()}> {/* Prevent closing when clicking image itself */}
+            <img src={modalImageUrl} alt="Profile Preview" className="block max-w-full max-h-full object-contain rounded-md" />
+            <button
+              onClick={() => setIsImageModalOpen(false)}
+              className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-1.5 hover:bg-opacity-75 transition-colors"
+              aria-label="Close image preview"
+            >&times;</button> {/* Simple close button */}
           </div>
         </div>
       )}

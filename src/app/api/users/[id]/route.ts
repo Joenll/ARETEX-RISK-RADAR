@@ -68,11 +68,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const token = await getToken({ req, secret: process.env.SESSION_SECRET });
     if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: Authentication required" }, { status: 401 });
     }
 
     const { id } = params;
     const body = await req.json();
+    console.log(`[API PUT /users/:id] Received body for user ${id}:`, JSON.stringify(body)); // Log received body
 
      // Validate ID format
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -80,9 +81,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     // --- Prepare allowed fields for profile update ---
-    type AllowedProfileUpdateKeys = keyof Pick<IUserProfile, 'firstName' | 'lastName' | 'employeeNumber' | 'workPosition' | 'team' | 'birthdate' | 'sex'>;
+    // Add 'profilePictureUrl' to the allowed keys
+    type AllowedProfileUpdateKeys = keyof Pick<IUserProfile, 'firstName' | 'lastName' | 'employeeNumber' | 'workPosition' | 'team' | 'birthdate' | 'sex' | 'profilePictureUrl'>;
     const allowedProfileUpdates: Partial<Pick<IUserProfile, AllowedProfileUpdateKeys>> = {};
-    const profileFields: AllowedProfileUpdateKeys[] = ['firstName', 'lastName', 'employeeNumber', 'workPosition', 'team', 'birthdate', 'sex'];
+    // Add 'profilePictureUrl' to the fields to check
+    const profileFields: AllowedProfileUpdateKeys[] = ['firstName', 'lastName', 'employeeNumber', 'workPosition', 'team', 'birthdate', 'sex', 'profilePictureUrl'];
 
     profileFields.forEach(field => {
         if (body.hasOwnProperty(field)) {
@@ -92,10 +95,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
                     return NextResponse.json({ message: `Invalid sex value. Allowed: ${ALLOWED_SEX_VALUES.join(', ')}` }, { status: 400 });
                 }
             }
+            // Add simple validation for profilePictureUrl if needed (e.g., check if it's a string and maybe a basic URL pattern)
+            // if (field === 'profilePictureUrl' && typeof body[field] !== 'string') { /* handle error */ }
+
             allowedProfileUpdates[field] = body[field];
         }
     });
 
+    console.log(`[API PUT /users/:id] Prepared profile updates for user ${id}:`, JSON.stringify(allowedProfileUpdates)); // Log updates being prepared
     if (Object.keys(allowedProfileUpdates).length === 0) {
         return NextResponse.json({ message: "No valid profile fields provided for update." }, { status: 400 });
     }
@@ -103,6 +110,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     // Allow admins to update any profile
     if (token.role === "admin") {
       console.log(`[API PUT /users/:id] Admin ${token.email} updating profile for user ${id}`);
+      console.log(`[API PUT /users/:id] Attempting findOneAndUpdate with data:`, JSON.stringify(allowedProfileUpdates)); // Log before DB call
       const updatedProfile = await UserProfile.findOneAndUpdate(
           { user: id },
           { $set: allowedProfileUpdates },
@@ -113,6 +121,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
          const userExists = await User.findById(id).countDocuments() > 0;
          return NextResponse.json({ message: userExists ? "Profile not found for this user" : "User not found" }, { status: 404 });
       }
+      console.log(`[API PUT /users/:id] Admin update successful for user ${id}. Result:`, JSON.stringify(updatedProfile)); // Log success
       return NextResponse.json({ message: "Profile updated successfully by admin!", data: updatedProfile });
     }
 
@@ -123,6 +132,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     console.log(`[API PUT /users/:id] User ${token.email} updating own profile`);
+    console.log(`[API PUT /users/:id] Attempting findOneAndUpdate with data:`, JSON.stringify(allowedProfileUpdates)); // Log before DB call
     const updatedProfile = await UserProfile.findOneAndUpdate(
         { user: token.sub },
         { $set: allowedProfileUpdates },
@@ -132,6 +142,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (!updatedProfile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
+    console.log(`[API PUT /users/:id] Self-update successful for user ${id}. Result:`, JSON.stringify(updatedProfile)); // Log success
 
     return NextResponse.json({ message: "Profile updated successfully!", data: updatedProfile });
 

@@ -24,6 +24,7 @@ declare module "next-auth" {
       status: UserStatus;
       name?: string; // Name might not exist initially
       profileComplete: boolean; // Added profileComplete flag
+      profilePictureUrl?: string | null; // <-- Add profile picture URL
     };
   }
 
@@ -47,6 +48,7 @@ declare module "next-auth/jwt" {
     status: UserStatus;
     name?: string; // Name might not exist initially
     profileComplete: boolean; // Added profileComplete flag
+    profilePictureUrl?: string | null; // <-- Add profile picture URL
     // 'sub' is standard in JWT for user ID, ensure it's string
     sub?: string;
   }
@@ -130,7 +132,7 @@ export const authOptions: AuthOptions = {
           if ((!finalName || finalName.trim() === '') && user.profile && mongoose.Types.ObjectId.isValid(user.profile.toString())) {
             console.log(`[Auth] Authorize: User.name missing, attempting to fetch from UserProfile ID: ${user.profile.toString()}`);
             try {
-              const userProfile = await UserProfile.findById(user.profile).select('firstName lastName').lean();
+              const userProfile = await UserProfile.findById(user.profile).select('firstName lastName profilePictureUrl').lean(); // <-- Select URL here too
               if (userProfile && userProfile.firstName && userProfile.lastName) {
                 finalName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
                 console.log(`[Auth] Authorize: Constructed name from UserProfile: ${finalName}`);
@@ -152,6 +154,7 @@ export const authOptions: AuthOptions = {
             status: user.status,
             name: finalName, // Use the determined name
             profileComplete: user.profileComplete ?? false,
+            // profilePictureUrl will be added in JWT callback
             // image: user.image, // Include if you add image to your User model
           };
 
@@ -304,19 +307,35 @@ export const authOptions: AuthOptions = {
                   if (dbUser) {
                       // --- Logic to determine the best name ---
                       let finalName = dbUser.name; // Start with name from User model
+                      let profilePictureUrlFromProfile: string | undefined | null = undefined; // Variable to hold fetched URL
                       if ((!finalName || finalName.trim() === '') && dbUser.profile && mongoose.Types.ObjectId.isValid(dbUser.profile.toString())) {
                          console.log(`[Auth] jwt: User.name missing, attempting fetch from UserProfile ID: ${dbUser.profile.toString()}`);
                          try {
-                            const userProfile = await UserProfile.findById(dbUser.profile).select('firstName lastName').lean();
+                            // Fetch name and picture URL together
+                            const userProfile = await UserProfile.findById(dbUser.profile).select('firstName lastName profilePictureUrl').lean(); // <-- Select URL
                             if (userProfile && userProfile.firstName && userProfile.lastName) {
                                finalName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
                                console.log(`[Auth] jwt: Constructed name from UserProfile: ${finalName}`);
                             } else {
                                console.warn(`[Auth] jwt: UserProfile found but missing name fields for profile ID: ${dbUser.profile.toString()}`);
                             }
+                            // Store fetched profile picture URL
+                            profilePictureUrlFromProfile = userProfile?.profilePictureUrl;
+                            if (userProfile?.profilePictureUrl) {
+                                console.log(`[Auth] jwt: Fetched profilePictureUrl during name construction: ${profilePictureUrlFromProfile}`);
+                            }
                          } catch (profileError) {
                             console.error(`[Auth] jwt: Error fetching UserProfile for ID ${dbUser.profile.toString()}:`, profileError);
                          }
+                      }
+                      // --- Always fetch profile picture URL on update trigger if profile exists ---
+                      // This ensures the picture updates even if the name didn't need construction.
+                      else if (trigger === "update" && dbUser.profile && mongoose.Types.ObjectId.isValid(dbUser.profile.toString())) {
+                          console.log(`[Auth] jwt: Update trigger - fetching UserProfile for picture URL. Profile ID: ${dbUser.profile.toString()}`);
+                          const userProfilePicOnly = await UserProfile.findById(dbUser.profile).select('profilePictureUrl').lean();
+                          profilePictureUrlFromProfile = userProfilePicOnly?.profilePictureUrl;
+                          if (profilePictureUrlFromProfile) console.log(`[Auth] jwt: Fetched profilePictureUrl separately during update: ${profilePictureUrlFromProfile}`);
+                          else console.log(`[Auth] jwt: UserProfile found but no picture URL during separate fetch.`);
                       }
                       // --- End name logic ---
 
@@ -328,8 +347,9 @@ export const authOptions: AuthOptions = {
                       token.profileComplete = dbUser.profileComplete ?? false;
                       token.name = finalName; // Use the determined name
                       token.profile = dbUser.profile?.toString();
+                      token.profilePictureUrl = profilePictureUrlFromProfile; // Assign the fetched URL (or null/undefined)
                       token.sub = dbUser._id.toString(); // Ensure token.sub is the correct DB ID string
-                      console.log(`[Auth] jwt callback: Token populated/refreshed from DB:`, { id: token.id, name: token.name, role: token.role, status: token.status, profileComplete: token.profileComplete });
+                      console.log(`[Auth] jwt callback: Token populated/refreshed from DB:`, { id: token.id, name: token.name, role: token.role, status: token.status, profileComplete: token.profileComplete, hasPicUrl: !!token.profilePictureUrl }); // <-- Log URL presence
 
                   } else {
                       console.error(`[Auth] jwt callback: Could not find user ${userIdToFetch} in DB during population/refresh. Returning original token.`);
@@ -365,6 +385,7 @@ export const authOptions: AuthOptions = {
         session.user.profileComplete = token.profileComplete ?? false; // Ensure boolean
         session.user.name = token.name; // Assign name from token
         session.user.profile = token.profile;
+        session.user.profilePictureUrl = token.profilePictureUrl; // <-- Pass URL to session
         session.user.email = token.email || ''; // Ensure email exists
       } else {
           // If token is invalid or missing essential data, invalidate the session
