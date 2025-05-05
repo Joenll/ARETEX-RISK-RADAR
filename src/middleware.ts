@@ -8,8 +8,8 @@ const USER_AUTHENTICATED_ROOT = "/ui/dashboard";
 const ADMIN_AUTHENTICATED_ROOT = "/ui/admin/dashboard";
 const PENDING_APPROVAL_PAGE = ["/", "/registration", "/about", "/terms" , "/forgot-password"]; // Your designated page for pending users
 const PROFILE_COMPLETE_PAGE = "/profile/complete-profile";
-const PUBLIC_PATHS = ["/", "/registration", "/about", "/terms", "/forgot-password"];
-const AUTH_PAGES = ["/", "/registration"];
+const PUBLIC_PATHS = ["/", "/registration", "/about", "/terms", "/forgot-password", "/reset-password"]; // Added /reset-password
+const AUTH_PAGES = ["/", "/registration"]; // Pages to redirect away from if logged in (excluding reset-password)
 
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
@@ -37,6 +37,12 @@ export async function middleware(req: NextRequest) {
 
   // --- Handle Public Paths ---
   if (PUBLIC_PATHS.includes(pathname)) {
+    // --- Allow access to reset-password regardless of login status ---
+    if (pathname === "/reset-password") {
+      console.log(`[Middleware] Allowing access to /reset-password.`);
+      return NextResponse.next();
+    }
+    // --- End reset-password check ---
     if (isLoggedIn && AUTH_PAGES.includes(pathname)) {
       // --- FIX: Check if already on the pending page ---
       // If user is pending and already on the designated pending page, allow them to stay.

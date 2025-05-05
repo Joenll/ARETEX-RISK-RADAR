@@ -4,7 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User, { UserStatus } from "@/models/User"; // Import UserStatus type
 import { getToken } from "next-auth/jwt";
+import { sendStatusUpdateEmail } from "@/lib/email"; // Import the email function
 import mongoose from "mongoose";
+import UserProfile from "@/models/UserProfile"; // Import UserProfile to potentially get name
 
 // Define the expected structure of the request body
 interface UpdateStatusRequestBody {
@@ -57,14 +59,26 @@ export async function PATCH(
       id, // Use 'id' from params
       { $set: { status: status } },
       { new: true, runValidators: true } // Return the updated document and run schema validators
-    ).select('email status role'); // Select only relevant fields for the response
+    )
+    .select('email status role profile name') // Select fields needed for response and email
+    .populate<{ profile: { firstName: string } }>('profile', 'firstName'); // Populate profile to get first name
 
     // 6. Handle User Not Found
     if (!updatedUser) {
       return NextResponse.json({ message: "User not found." }, { status: 404 });
     }
 
-    // 7. Return Success Response
+    // 7. Send Status Update Email
+    try {
+      // Determine the name to use (from User.name or profile.firstName)
+      const userName = updatedUser.name || updatedUser.profile?.firstName;
+      await sendStatusUpdateEmail(updatedUser.email, userName, status);
+    } catch (emailError) {
+      console.error(`Failed to send ${status} status update email to ${updatedUser.email}:`, emailError);
+      // Log the error but don't fail the API request
+    }
+
+    // 8. Return Success Response
     console.log(`Admin ${token.email} updated user ${updatedUser.email} status to ${status}`);
     return NextResponse.json(
         { message: `User status successfully updated to ${status}.`, user: updatedUser },

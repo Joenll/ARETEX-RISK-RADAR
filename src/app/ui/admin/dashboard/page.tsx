@@ -467,6 +467,81 @@ export default function AdminDashBoardPage() {
                 </div>
               </div>
 
+
+                {/* --- Conditional Rendering for Visualizations Section --- */}
+      {(dashboardViewMode === 'all' || dashboardViewMode === 'visualizations') && (
+        <>
+          {/* Section: Crime Map Visualizations */}
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Geospatial Analysis / Weather Forecast</h1>
+          <div className="bg-white p-4 rounded-lg shadow border border-gray-200 ">
+            {/* --- Controls Row --- */}
+            <div className="mb-4 flex flex-wrap items-center justify-end gap-4">
+              {/* Crime Map Filter (Conditional) - Moved to the start */}
+              {activeGeospatialView === 'crime' && (
+                <div className="relative mr-auto" ref={mapFilterDropdownRef}>
+                  <button onClick={() => setIsMapFilterOpen(!isMapFilterOpen)} className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${ isMapFilterOpen ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-800 hover:bg-indigo-500 hover:text-white" }`}>
+                    <FaFilter className="mr-2" />{formatMapName(activeMap)}<FaChevronDown className={`ml-2 transition-transform duration-200 ${isMapFilterOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isMapFilterOpen && ( <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20"><ul className="py-1">{(['heat', 'hotspot', 'status'] as MapType[]).map((mapType) => ( <li key={mapType}><button onClick={() => handleMapSelect(mapType)} className={`w-full text-left px-4 py-2 text-sm transition-colors ${ activeMap === mapType ? "bg-gray-100 text-orange-500 font-medium" : "text-gray-700 hover:bg-gray-100 hover:text-orange-500" }`}>{formatMapName(mapType)}</button></li> ))}&</ul></div> )}
+                </div>
+              )}
+
+              {/* View Switch Buttons - Kept at the end (justify-end will place them correctly) */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleGeospatialViewChange('crime')}
+                  className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
+                    activeGeospatialView === 'crime'
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
+                  }`}
+                >
+                  <FaMap className="mr-2" /> Crime Map
+                </button>
+                <button
+                  onClick={() => handleGeospatialViewChange('weather')}
+                  className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
+                    activeGeospatialView === 'weather'
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
+                  }`}
+                >
+                  <FaCloudSun className="mr-2" /> Weather
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg">
+                {/* --- Dynamic Title --- */}
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  {activeGeospatialView === 'crime' ? `Crime Map: ${formatMapName(activeMap)}` : 'Weather Forecast'}
+                </h2>
+                {/* Adjusted height: base height increased, md height set to 780px */}
+                <div className="w-full h-[600px] md:h-[780px] bg-white rounded-lg overflow-hidden shadow-inner">
+                  {/* --- Conditional Rendering of Map/Weather --- */}
+                  {activeGeospatialView === 'crime' && (
+                    <CrimeMap
+                      key={activeMap} // Keep key for re-rendering CrimeMap on type change
+                      endpointPath={mapEndpoints[activeMap]}
+                      className="w-full h-full"
+                      legendTitle={currentLegend.title}
+                      legendItems={currentLegend.items}
+                    />
+                  )}
+                  {activeGeospatialView === 'weather' && (
+                    <WeatherMap
+                      key="weather-map" // Add a key for consistency
+                      endpointPath="/api/generate-weather"
+                      title="Weather Forecast" // Consistent title
+                      className="relative w-full h-full flex-grow" // Ensure it fills the container
+                    />
+                  )}
+                </div>
+            </div>
+          </div>
+        </>
+      )}
+
               {/* Section: Line Chart & Bar Chart Side-by-Side */}
               <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Report Charts</h1>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -684,7 +759,7 @@ export default function AdminDashBoardPage() {
       {/* --- END Conditional Rendering for Charts Sections --- */}
 
 
-      {/* --- Conditional Rendering for Visualizations Section --- */}
+      {/* --- Conditional Rendering for Visualizations Section (MOVED HERE) --- */}
       {(dashboardViewMode === 'all' || dashboardViewMode === 'visualizations') && (
         <>
           {/* Section: Crime Map Visualizations */}

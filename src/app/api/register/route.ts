@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
-import UserProfile, { UserSex } from "@/models/UserProfile";
+import UserProfile, { IUserProfile, UserSex } from "@/models/UserProfile"; // Import IUserProfile if needed
+import Notification from "@/models/Notification"; // Import the Notification model
 import mongoose, { Types } from "mongoose";
-
+// Import only the necessary email function
+import { sendStatusUpdateEmail } from "@/lib/email";
 interface RegisterRequestBody {
   email?: string;
   password?: string;
@@ -98,6 +100,20 @@ export async function POST(req: Request) {
     await newUserProfile.save();
     await newUser.save();
 
+    // --- Create Admin Notification in DB ---
+    try {
+        const adminNotification = new Notification({
+            recipientRole: 'admin', // Target all admins
+            type: 'new_user_pending',
+            message: `New user registered: ${newUser.email} (${newUserProfile.firstName} ${newUserProfile.lastName}) is awaiting approval.`,
+            link: '/ui/admin/user-management', // Link to user management page (adjust if needed)
+            isRead: false,
+        });
+        await adminNotification.save();
+    } catch (notificationError) {
+        console.error(`Failed to create admin notification for new user ${newUser.email}:`, notificationError);
+        // Log error, but don't fail the registration
+    }
     return NextResponse.json(
       { message: "User registered successfully! Awaiting admin approval." },
       { status: 201 }

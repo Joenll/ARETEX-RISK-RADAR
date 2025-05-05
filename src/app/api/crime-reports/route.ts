@@ -3,12 +3,20 @@ import connectDB from "@/lib/mongodb";
 import CrimeReport from "@/models/CrimeReports";
 import Location from "@/models/location";
 import CrimeType from "@/models/CrimeType";
+import Notification from "@/models/Notification"; // Import Notification model
 import { requireRole } from "@/middleware/authMiddleware";
-import { fetchCoordinates } from "@/app/utils/geocoder"; 
+import { fetchCoordinates } from "@/app/utils/geocoder";
 import { isPSGCCode } from "@/app/utils/ispsgc";
 import { getPSGCName } from "@/app/utils/psgcName";
 import mongoose from "mongoose";
 
+// Helper to format date/time for notification message
+const formatDateTimeForNotification = (date: Date | string, time: string): string => {
+    const d = new Date(date);
+    const dateString = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    // Basic time formatting, adjust if your time format is different
+    return `${dateString} at ${time}`;
+}
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 
@@ -341,6 +349,26 @@ export async function POST(req: Request) {
       crime_occurred_indoors_or_outdoors: body.crime_occurred_indoors_or_outdoors,
     });
 
+    // --- Create Notification for 'all' users ---
+    try {
+        // Use the actual crime type name and location names for the message
+        const locationName = location.barangay || location.municipality_city || 'Unknown Location';
+        const dateTimeString = formatDateTimeForNotification(crime.date, crime.time);
+
+        await Notification.create({
+            message: `New report submitted: ${crimeType.crime_type} on ${dateTimeString} in ${locationName}.`,
+            type: 'new_report_submitted', // <-- Added notification type
+            recipientRole: 'all', // Target both admin and user
+            link: `/ui/admin/view-crime?highlight=${crime._id}`, // Link for admins (adjust if users have a different view)
+            // linkUser: `/ui/view-report/${crime._id}`, // Example for user link (if needed)
+            isRead: false,
+        });
+        console.log("Notification created for new crime report:", crime.crime_id);
+    } catch (notificationError) {
+        console.error("Failed to create notification for new report:", notificationError);
+        // Log the error, but don't fail the main report creation
+    }
+    // --- End Notification Creation ---
     return NextResponse.json(
       { message: "Crime Report Saved!", data: crime },
       { status: 201 } // 201 Created status code

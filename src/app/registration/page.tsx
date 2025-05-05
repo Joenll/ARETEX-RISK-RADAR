@@ -47,7 +47,7 @@ type ValidationErrors = {
   team?: string;
   sex?: string;
   terms?: string; // Added for terms agreement
-  address?: string; // Added for address field
+  // address?: string; // Removed address field
 };
 
 // --- Helper function to capitalize the first letter ---
@@ -69,7 +69,7 @@ const initialFormData = {
   birthdate: "",
   team: "",
   sex: "",
-  address: "", // Added address field
+  // address: "", // Removed address field
 };
 
 export default function RegisterPage() {
@@ -124,7 +124,7 @@ export default function RegisterPage() {
     const workPosition = getTrimmedString("workPosition");
     const team = getTrimmedString("team");
     const birthdate = getTrimmedString("birthdate");
-
+    // Removed address validation
     // Required fields check
     if (!email) errors.email = "Email is required.";
     if (!password) errors.password = "Password is required.";
@@ -249,7 +249,7 @@ export default function RegisterPage() {
       birthdate: formData.birthdate,
       team: formData.team.trim(),
       sex: formData.sex,
-      address: formData.address?.trim() || "", // Include address field
+      // address: formData.address?.trim() || "", // Removed address field
     };
 
     console.log("Submitting registration data:", data);
@@ -263,11 +263,19 @@ export default function RegisterPage() {
       const resData = await response.json();
 
       if (response.ok) {
-        setSuccess("Registration successful! Redirecting to sign in...");
+        // Removed setSuccess
+        // Show SweetAlert on success
+        Swal.fire({
+          icon: 'success',
+          title: 'Registration Submitted!',
+          text: 'Your account is pending admin approval. You will receive an email notification shortly.',
+          timer: 3000, // Keep it visible for a bit longer
+          showConfirmButton: false,
+        });
         // Optionally reset form state
         // setFormData(initialFormData);
         // setAgreeToTerms(false);
-        setTimeout(() => router.push("/"), 2000);
+        setTimeout(() => router.push("/"), 3100); // Redirect after the alert timer
       } else {
         // Use API error message
         setError(
@@ -401,13 +409,14 @@ export default function RegisterPage() {
               </div>
               <div className="w-full sm:w-1/2 text-black">
                 {/* Remove birth date label and change input type */}
+                {/* Changed type to "date" */}
                 <input
-                  type="text"
+                  type="date"
                   name="birthdate"
-                  placeholder="mm/dd/yyyy"
+                  placeholder="Birthdate" // Placeholder might not show for type="date"
                   value={formData.birthdate}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                  className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700 ${ // Ensure text is visible
                     validationErrors.birthdate ? "border-red-500" : ""
                   }`}
                   pattern="\d{2}/\d{2}/\d{4}"
@@ -422,13 +431,13 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Department / Position (renamed from Team / Work Position) */}
+            {/* Team / Work Position */}
             <div className="flex flex-col sm:flex-row sm:space-x-4 mb-3 text-black">
               <div className="w-full sm:w-1/2 mb-3 sm:mb-0">
                 <input
                   type="text"
                   name="team"
-                  placeholder="Department"
+                  placeholder="Team" // Updated placeholder
                   value={formData.team}
                   onChange={handleChange}
                   className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
@@ -448,7 +457,7 @@ export default function RegisterPage() {
                 <input
                   type="text"
                   name="workPosition"
-                  placeholder="Position"
+                  placeholder="Work Position" // Updated placeholder
                   value={formData.workPosition}
                   onChange={handleChange}
                   className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
@@ -465,16 +474,20 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Address (new field from the image) */}
+            {/* Employee Number (Added) */}
             <div className="mb-3 text-black">
               <input
                 type="text"
-                name="address"
-                placeholder="Address"
-                value={formData.address || ""}
+                name="employeeNumber"
+                placeholder="Employee Number"
+                value={formData.employeeNumber}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100"
+                className={`w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 placeholder-opacity-100 ${
+                  validationErrors.employeeNumber ? "border-red-500" : ""
+                }`}
+                required
                 disabled={isLoading || isGoogleLoading}
+                // Removed address field
               />
             </div>
 
@@ -526,14 +539,6 @@ export default function RegisterPage() {
               name="confirmPassword"
               value={formData.password}
               onChange={handleChange}
-              disabled={isLoading || isGoogleLoading}
-            />
-
-            {/* Hidden Employee Number (using email if needed) */}
-            <input
-              type="hidden"
-              name="employeeNumber"
-              value={formData.employeeNumber || formData.email}
               disabled={isLoading || isGoogleLoading}
             />
 

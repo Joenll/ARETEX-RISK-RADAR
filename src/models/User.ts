@@ -14,8 +14,8 @@ export interface IUser extends Document {
   status: UserStatus; // Account status
   createdAt: Date;
   updatedAt: Date;
-  passwordResetToken?: string;
-  passwordResetExpires?: Date;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   name?: string; // Optional name field for convenience
 }
 
@@ -59,13 +59,13 @@ const UserSchema = new Schema<IUser>(
       default: "pending", // Default status is pending
       required: true,
     },
-    passwordResetToken: {
+    resetPasswordToken: {
       type: String,
-      select: false,
+      default: null, // Default to null if not set
     },
-    passwordResetExpires: {
+    resetPasswordExpires: {
       type: Date,
-      select: false,
+      default: null, // Default to null if not set
     },
     name: {
       type: String, // Optional name field for convenience
