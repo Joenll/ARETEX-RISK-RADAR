@@ -36,6 +36,8 @@ interface GenderCount { gender: string | null; count: number; }
 interface StatusCount { status: string; count: number; }
 type MapType = 'heat' | 'hotspot' | 'status';
 type DashboardViewMode = 'all' | 'charts' | 'visualizations';
+// --- NEW: Interface for Legend Items (copied from admin dashboard) ---
+interface LegendItem { color: string; label: string; }
 
 
 // --- Helper components (UserList, formatDate) ---
@@ -148,9 +150,9 @@ export default function AdminDashBoardPage() {
 
   // --- Map Endpoints & Legends ---
   const mapEndpoints: Record<MapType, string> = { heat: '/api/heatmap', hotspot: '/api/hotspot-map', status: '/api/status-map' };
-  const statusMapLegend = [ { color: 'bg-red-500', label: 'Open / Ongoing' }, { color: 'bg-blue-500', label: 'Pending / Under Investigation' }, { color: 'bg-green-500', label: 'Closed / Resolved' } ];
-  const heatmapLegend = [ { color: 'bg-blue-500', label: 'Low Risk' }, { color: 'bg-green-500', label: 'Moderate Risk' }, { color: 'bg-yellow-400', label: 'Medium Risk' }, { color: 'bg-red-500', label: 'High Risk' }, { color: 'bg-red-800', label: 'Very High Risk' } ];
-  const hotspotMapLegend = [ { color: 'bg-red-600', label: 'Indicates areas with a higher probability of future crime incidents.' } ];
+  const statusMapLegend: LegendItem[] = [ { color: 'bg-red-500', label: 'Open / Ongoing' }, { color: 'bg-blue-500', label: 'Pending / Under Investigation' }, { color: 'bg-green-500', label: 'Closed / Resolved' } ];
+  const heatmapLegend: LegendItem[] = [ { color: 'bg-blue-500', label: 'Low Risk' }, { color: 'bg-green-500', label: 'Moderate Risk' }, { color: 'bg-yellow-400', label: 'Medium Risk' }, { color: 'bg-red-500', label: 'High Risk' }, { color: 'bg-red-800', label: 'Very High Risk' } ];
+  const hotspotMapLegend: LegendItem[] = [ { color: 'bg-red-600', label: 'Indicates areas with a higher probability of future crime incidents.' } ];
 
   // --- useEffect hooks for data fetching (remain the same) ---
   // Fetch Trend Data (Line Chart)
@@ -330,7 +332,7 @@ export default function AdminDashBoardPage() {
   const handleMapSelect = (mapType: MapType) => { setActiveMap(mapType); setIsMapFilterOpen(false); };
   const formatMapName = (mapType: MapType) => { const name = mapType.charAt(0).toUpperCase() + mapType.slice(1).replace('-', ' '); return `${name} Map`; };
   const getCurrentLegend = () => { switch (activeMap) { case 'status': return { title: "Case Status", items: statusMapLegend }; case 'heat': return { title: "Risk Level", items: heatmapLegend }; case 'hotspot': return { title: "Prediction", items: hotspotMapLegend }; default: return { title: undefined, items: undefined }; } };
-  const currentLegend = getCurrentLegend();
+  const currentLegend = getCurrentLegend(); // Removed useMemo as it's simple enough
   const handleTrendTypeChange = useCallback((type: TrendType) => { setSelectedTrendType(type); }, []);
   const handleLocationGroupByChange = useCallback((type: LocationGroupByType) => { setLocationGroupBy(type); }, []);
   const handleLocationYearChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -467,80 +469,113 @@ export default function AdminDashBoardPage() {
                 </div>
               </div>
 
+              {/* --- MOVED: Geospatial Analysis / Weather Forecast Section --- */}
+              {(dashboardViewMode === 'all' || dashboardViewMode === 'visualizations') && (
+                <>
+                  {/* Section: Crime Map Visualizations */}
+                  <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Geospatial Analysis / Weather Forecast</h1>
+                  <div className="bg-white p-4 rounded-lg shadow border border-gray-200 ">
+                    {/* --- Controls Row --- */}
+                    <div className="mb-4 flex flex-wrap items-center justify-end gap-4">
+                     {/* Crime Map Filter (Conditional) */}
+                              {activeGeospatialView === 'crime' && (
+                                <div className="relative mr-auto" ref={mapFilterDropdownRef}>
+                                  <button
+                                    onClick={() => setIsMapFilterOpen(!isMapFilterOpen)}
+                                    className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
+                                      isMapFilterOpen
+                                        ? "bg-indigo-600 text-white"
+                                        : "bg-gray-100 text-gray-800 hover:bg-indigo-500 hover:text-white"
+                                    }`}
+                                  >
+                                    <FaFilter className="mr-2" />
+                                    {formatMapName(activeMap)}
+                                    <FaChevronDown
+                                      className={`ml-2 transition-transform duration-200 ${
+                                        isMapFilterOpen ? "rotate-180" : ""
+                                      }`}
+                                    />
+                                  </button>
+                                  {isMapFilterOpen && (
+                                    <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20">
+                                      <ul className="py-1">
+                                        {(["heat", "hotspot", "status"] as MapType[]).map(
+                                          (mapType) => (
+                                            <li key={mapType}>
+                                              <button
+                                                onClick={() => handleMapSelect(mapType)}
+                                                className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                                                  activeMap === mapType
+                                                    ? "bg-gray-100 text-orange-500 font-medium"
+                                                    : "text-gray-700 hover:bg-gray-100 hover:text-orange-500"
+                                                }`}
+                                              >
+                                                {formatMapName(mapType)}
+                                              </button>
+                                            </li>
+                                          )
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                      {/* View Switch Buttons - Kept at the end (justify-end will place them correctly) */}
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleGeospatialViewChange('crime')}
+                          className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
+                            activeGeospatialView === 'crime'
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
+                          }`}
+                        >
+                          <FaMap className="mr-2" /> Crime Map
+                        </button>
+                        <button
+                          onClick={() => handleGeospatialViewChange('weather')}
+                          className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
+                            activeGeospatialView === 'weather'
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
+                          }`}
+                        >
+                          <FaCloudSun className="mr-2" /> Weather
+                        </button>
+                      </div>
+                    </div>
 
-                {/* --- Conditional Rendering for Visualizations Section --- */}
-      {(dashboardViewMode === 'all' || dashboardViewMode === 'visualizations') && (
-        <>
-          {/* Section: Crime Map Visualizations */}
-          <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Geospatial Analysis / Weather Forecast</h1>
-          <div className="bg-white p-4 rounded-lg shadow border border-gray-200 ">
-            {/* --- Controls Row --- */}
-            <div className="mb-4 flex flex-wrap items-center justify-end gap-4">
-              {/* Crime Map Filter (Conditional) - Moved to the start */}
-              {activeGeospatialView === 'crime' && (
-                <div className="relative mr-auto" ref={mapFilterDropdownRef}>
-                  <button onClick={() => setIsMapFilterOpen(!isMapFilterOpen)} className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${ isMapFilterOpen ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-800 hover:bg-indigo-500 hover:text-white" }`}>
-                    <FaFilter className="mr-2" />{formatMapName(activeMap)}<FaChevronDown className={`ml-2 transition-transform duration-200 ${isMapFilterOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {isMapFilterOpen && ( <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20"><ul className="py-1">{(['heat', 'hotspot', 'status'] as MapType[]).map((mapType) => ( <li key={mapType}><button onClick={() => handleMapSelect(mapType)} className={`w-full text-left px-4 py-2 text-sm transition-colors ${ activeMap === mapType ? "bg-gray-100 text-orange-500 font-medium" : "text-gray-700 hover:bg-gray-100 hover:text-orange-500" }`}>{formatMapName(mapType)}</button></li> ))}&</ul></div> )}
-                </div>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                        {/* --- Dynamic Title --- */}
+                        <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                          {activeGeospatialView === 'crime' ? `Crime Map: ${formatMapName(activeMap)}` : 'Weather Forecast'}
+                        </h2>
+                        {/* Adjusted height: base height increased, md height set to 780px */}
+                        <div className="w-full h-[600px] md:h-[780px] bg-white rounded-lg overflow-hidden shadow-inner">
+                          {/* --- Conditional Rendering of Map/Weather --- */}
+                          {activeGeospatialView === 'crime' && (
+                            <CrimeMap
+                              key={activeMap} // Keep key for re-rendering CrimeMap on type change
+                              endpointPath={mapEndpoints[activeMap]}
+                              className="w-full h-full"
+                              legendTitle={currentLegend.title}
+                              legendItems={currentLegend.items}
+                            />
+                          )}
+                          {activeGeospatialView === 'weather' && (
+                            <WeatherMap
+                              key="weather-map" // Add a key for consistency
+                              endpointPath="/api/generate-weather"
+                              title="Weather Forecast" // Consistent title
+                              className="relative w-full h-full flex-grow" // Ensure it fills the container
+                            />
+                          )}
+                        </div>
+                    </div>
+                  </div>
+                </>
               )}
-
-              {/* View Switch Buttons - Kept at the end (justify-end will place them correctly) */}
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleGeospatialViewChange('crime')}
-                  className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
-                    activeGeospatialView === 'crime'
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
-                  }`}
-                >
-                  <FaMap className="mr-2" /> Crime Map
-                </button>
-                <button
-                  onClick={() => handleGeospatialViewChange('weather')}
-                  className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${
-                    activeGeospatialView === 'weather'
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-800 hover:bg-blue-500 hover:text-white"
-                  }`}
-                >
-                  <FaCloudSun className="mr-2" /> Weather
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-lg">
-                {/* --- Dynamic Title --- */}
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                  {activeGeospatialView === 'crime' ? `Crime Map: ${formatMapName(activeMap)}` : 'Weather Forecast'}
-                </h2>
-                {/* Adjusted height: base height increased, md height set to 780px */}
-                <div className="w-full h-[600px] md:h-[780px] bg-white rounded-lg overflow-hidden shadow-inner">
-                  {/* --- Conditional Rendering of Map/Weather --- */}
-                  {activeGeospatialView === 'crime' && (
-                    <CrimeMap
-                      key={activeMap} // Keep key for re-rendering CrimeMap on type change
-                      endpointPath={mapEndpoints[activeMap]}
-                      className="w-full h-full"
-                      legendTitle={currentLegend.title}
-                      legendItems={currentLegend.items}
-                    />
-                  )}
-                  {activeGeospatialView === 'weather' && (
-                    <WeatherMap
-                      key="weather-map" // Add a key for consistency
-                      endpointPath="/api/generate-weather"
-                      title="Weather Forecast" // Consistent title
-                      className="relative w-full h-full flex-grow" // Ensure it fills the container
-                    />
-                  )}
-                </div>
-            </div>
-          </div>
-        </>
-      )}
+              {/* --- END MOVED SECTION --- */}
 
               {/* Section: Line Chart & Bar Chart Side-by-Side */}
               <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Report Charts</h1>
@@ -649,7 +684,7 @@ export default function AdminDashBoardPage() {
                   <div className="bg-white p-4 rounded-lg shadow border border-gray-200 flex flex-col">
                       {/* You might want a title here too */}
                       <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center">
-                          <FaChartPie className="mr-2 text-blue-600" />Status 
+                          <FaChartPie className="mr-2 text-blue-600" />Status
                       </h2>
                       <div className="relative h-96 flex-grow"> {/* Ensure height */}
                           <PieChart approvedCount={approvedUserCount} pendingCount={pendingUserCount} rejectedCount={rejectedUserCount} isLoading={isLoadingCounts} error={errorCounts ? 'Error loading chart data' : null} />
@@ -759,8 +794,8 @@ export default function AdminDashBoardPage() {
       {/* --- END Conditional Rendering for Charts Sections --- */}
 
 
-      {/* --- Conditional Rendering for Visualizations Section (MOVED HERE) --- */}
-      {(dashboardViewMode === 'all' || dashboardViewMode === 'visualizations') && (
+      {/* --- Conditional Rendering for Visualizations Section (This is only rendered when mode is 'visualizations') --- */}
+      {dashboardViewMode === 'visualizations' && (
         <>
           {/* Section: Crime Map Visualizations */}
           <h1 className="text-2xl font-bold text-gray-800 mb-2 py-5">Geospatial Analysis / Weather Forecast</h1>
@@ -773,7 +808,7 @@ export default function AdminDashBoardPage() {
                   <button onClick={() => setIsMapFilterOpen(!isMapFilterOpen)} className={`flex items-center px-4 py-2 font-semibold rounded-lg shadow-md text-sm transition-colors duration-150 ${ isMapFilterOpen ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-800 hover:bg-indigo-500 hover:text-white" }`}>
                     <FaFilter className="mr-2" />{formatMapName(activeMap)}<FaChevronDown className={`ml-2 transition-transform duration-200 ${isMapFilterOpen ? 'rotate-180' : ''}`} />
                   </button>
-                  {isMapFilterOpen && ( <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20"><ul className="py-1">{(['heat', 'hotspot', 'status'] as MapType[]).map((mapType) => ( <li key={mapType}><button onClick={() => handleMapSelect(mapType)} className={`w-full text-left px-4 py-2 text-sm transition-colors ${ activeMap === mapType ? "bg-gray-100 text-orange-500 font-medium" : "text-gray-700 hover:bg-gray-100 hover:text-orange-500" }`}>{formatMapName(mapType)}</button></li> ))}&</ul></div> )}
+                  {isMapFilterOpen && ( <div className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-20"><ul className="py-1">{(['heat', 'hotspot', 'status'] as MapType[]).map((mapType) => ( <li key={mapType}><button onClick={() => handleMapSelect(mapType)} className={`w-full text-left px-4 py-2 text-sm transition-colors ${ activeMap === mapType ? "bg-gray-100 text-orange-500 font-medium" : "text-gray-700 hover:bg-gray-100 hover:text-orange-500" }`}>{formatMapName(mapType)}</button></li> ))}</ul></div> )}
                 </div>
               )}
 
