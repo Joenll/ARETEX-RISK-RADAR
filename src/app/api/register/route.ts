@@ -114,6 +114,31 @@ export async function POST(req: Request) {
         console.error(`Failed to create admin notification for new user ${newUser.email}:`, notificationError);
         // Log error, but don't fail the registration
     }
+
+    // --- Send Email Notification to Admins ---
+    try {
+        const admins = await User.find({ role: 'admin' }).select('email').lean(); // Find admin emails
+        if (admins.length > 0) {
+            const subject = "New User Registration Pending Approval";
+            const textBody = `A new user has registered and requires approval.\n\nEmail: ${newUser.email}\nName: ${newUserProfile.firstName} ${newUserProfile.lastName}\nEmployee #: ${newUserProfile.employeeNumber}\n\nPlease review their account in the admin panel: ${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/ui/admin/user-management`; // Adjust link/body as needed
+            // Consider an HTML version as well for better formatting if your sendStatusUpdateEmail supports it
+
+            for (const admin of admins) {
+                try {
+                    // Assuming sendStatusUpdateEmail takes (recipientEmail, subject, textBody)
+                    // Adjust parameters based on your actual function definition in @/lib/email
+                    await sendStatusUpdateEmail(admin.email, null, 'pending');
+                } catch (emailError) {
+                    console.error(`Failed to send new user notification email to admin ${admin.email}:`, emailError);
+                    // Log error for individual admin, but continue trying others
+                }
+            }
+        }
+    } catch (adminQueryError) {
+        console.error(`Failed to query admins for email notification regarding new user ${newUser.email}:`, adminQueryError);
+        // Log error, but don't fail the registration
+    }
+
     return NextResponse.json(
       { message: "User registered successfully! Awaiting admin approval." },
       { status: 201 }
