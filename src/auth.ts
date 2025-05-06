@@ -133,8 +133,8 @@ export const authOptions: AuthOptions = {
             console.log(`[Auth] Authorize: User.name missing, attempting to fetch from UserProfile ID: ${user.profile.toString()}`);
             try {
               const userProfile = await UserProfile.findById(user.profile).select('firstName lastName profilePictureUrl').lean(); // <-- Select URL here too
-              if (userProfile && userProfile.firstName && userProfile.lastName) {
-                finalName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+              if (userProfile && userProfile.firstName) { // Only require firstName now
+                finalName = userProfile.firstName.trim(); // Use only firstName
                 console.log(`[Auth] Authorize: Constructed name from UserProfile: ${finalName}`);
               } else {
                  console.warn(`[Auth] Authorize: UserProfile found but missing name fields for profile ID: ${user.profile.toString()}`);
@@ -313,8 +313,8 @@ export const authOptions: AuthOptions = {
                          try {
                             // Fetch name and picture URL together
                             const userProfile = await UserProfile.findById(dbUser.profile).select('firstName lastName profilePictureUrl').lean(); // <-- Select URL
-                            if (userProfile && userProfile.firstName && userProfile.lastName) {
-                               finalName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+                            if (userProfile && userProfile.firstName) { // Only require firstName now
+                               finalName = userProfile.firstName.trim(); // Use only firstName
                                console.log(`[Auth] jwt: Constructed name from UserProfile: ${finalName}`);
                             } else {
                                console.warn(`[Auth] jwt: UserProfile found but missing name fields for profile ID: ${dbUser.profile.toString()}`);
