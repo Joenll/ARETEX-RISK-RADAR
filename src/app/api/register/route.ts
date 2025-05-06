@@ -139,6 +139,21 @@ export async function POST(req: Request) {
         // Log error, but don't fail the registration
     }
 
+    // --- Send Pending Approval Email to User ---
+    try {
+        const subject = "Your Aretex Risk Radar Account is Pending Approval";
+        const textBody = `Hello ${newUserProfile.firstName},\n\nThank you for registering for Aretex Risk Radar.\n\nYour account (${newUser.email}) has been created successfully but requires administrator approval before you can log in.\n\nYou will receive another notification once your account is approved.\n\nBest regards,\nThe Aretex Team`;
+        // Adjust parameters based on your actual function definition in @/lib/email
+        await sendStatusUpdateEmail(newUser.email, newUserProfile.firstName, 'pending');
+    } catch (userEmailError) {
+        console.error(`Failed to send pending approval email to new user ${newUser.email}:`, userEmailError);
+        // Log error, but don't fail the overall registration process
+    }
+
+    // --- Send Email Notification to Admins ---
+    // (Keep the existing admin notification logic here)
+    // ... (rest of the admin email sending code) ...
+
     return NextResponse.json(
       { message: "User registered successfully! Awaiting admin approval." },
       { status: 201 }
