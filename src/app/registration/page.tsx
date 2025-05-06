@@ -378,7 +378,7 @@ export default function RegisterPage() {
                 )}
               </div>
             </div>
-            {/* Gender / Date */}
+            {/* Sex / Date */}
             <div className="flex flex-col sm:flex-row sm:space-x-4 mb-3 text-black">
               <div className="w-full sm:w-1/2 mb-3 sm:mb-0">
                 <select
@@ -393,7 +393,7 @@ export default function RegisterPage() {
                   disabled={isLoading || isGoogleLoading}
                 >
                   <option value="" disabled>
-                    Gender
+                    Sex
                   </option>
                   {sexOptions.map((option) => (
                     <option key={option} value={option}>
